@@ -1,0 +1,564 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Rummikub Word - WebSocket 版</title>
+  <!-- Socket.IO 客戶端 -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.7.4/socket.io.js"></script>
+  
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: 'Arial', sans-serif;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      min-height: 100vh;
+      padding: 20px;
+    }
+
+    .container {
+      max-width: 800px;
+      margin: 0 auto;
+      background: white;
+      border-radius: 15px;
+      padding: 30px;
+      box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+    }
+
+    h1 {
+      text-align: center;
+      color: #333;
+      margin-bottom: 30px;
+      font-size: 2rem;
+    }
+
+    /* 連接狀態 */
+    .connection-status {
+      text-align: center;
+      padding: 10px;
+      border-radius: 8px;
+      margin-bottom: 20px;
+      font-weight: bold;
+    }
+    .connection-status.success { background: #d4edda; color: #155724; }
+    .connection-status.error { background: #f8d7da; color: #721c24; }
+    .connection-status.warning { background: #fff3cd; color: #856404; }
+    .connection-status.info { background: #d1ecf1; color: #0c5460; }
+
+    /* 玩家資訊 */
+    .player-info {
+      text-align: center;
+      margin-bottom: 20px;
+    }
+    .player-card {
+      display: inline-block;
+      background: #f8f9fa;
+      padding: 10px 20px;
+      border-radius: 20px;
+      border: 2px solid #007bff;
+    }
+    .player-name { font-weight: bold; color: #007bff; }
+    .player-id { color: #666; font-size: 0.8em; }
+
+    /* 界面區段 */
+    .section {
+      display: none;
+      min-height: 400px;
+    }
+    .section.active { display: block; }
+
+    /* 登入區段 */
+    .login-section {
+      text-align: center;
+      padding: 40px 0;
+    }
+    .login-section input {
+      padding: 12px 20px;
+      border: 2px solid #ddd;
+      border-radius: 8px;
+      font-size: 16px;
+      margin: 0 10px 20px 0;
+      width: 250px;
+    }
+    .login-section button {
+      padding: 12px 24px;
+      background: #007bff;
+      color: white;
+      border: none;
+      border-radius: 8px;
+      font-size: 16px;
+      cursor: pointer;
+      margin: 5px;
+    }
+    .login-section button:hover { background: #0056b3; }
+
+    /* 大廳區段 */
+    .lobby-section {
+      display: grid;
+      grid-template-columns: 2fr 1fr;
+      gap: 30px;
+      margin-top: 20px;
+    }
+
+    .rooms-list {
+      background: #f8f9fa;
+      padding: 20px;
+      border-radius: 10px;
+      border: 1px solid #dee2e6;
+      max-height: 400px;
+      overflow-y: auto;
+    }
+    .rooms-list h3 {
+      margin-bottom: 15px;
+      color: #495057;
+    }
+
+    .room-card {
+      background: white;
+      padding: 15px;
+      margin: 10px 0;
+      border-radius: 8px;
+      border: 2px solid #e9ecef;
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
+    .room-card:hover {
+      border-color: #007bff;
+      transform: translateY(-2px);
+      box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+    }
+
+    .room-name {
+      font-weight: bold;
+      font-size: 1.1em;
+      margin-bottom: 5px;
+    }
+
+    .room-info {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 10px;
+    }
+
+    .players-count {
+      background: #007bff;
+      color: white;
+      padding: 2px 8px;
+      border-radius: 12px;
+      font-size: 0.9em;
+    }
+
+    .room-status {
+      padding: 2px 8px;
+      border-radius: 12px;
+      font-size: 0.9em;
+      font-weight: bold;
+    }
+    .room-status.waiting { background: #28a745; color: white; }
+    .room-status.playing { background: #ffc107; color: #212529; }
+    .room-status.finished { background: #6c757d; color: white; }
+
+    .join-btn {
+      width: 100%;
+      padding: 8px;
+      background: #28a745;
+      color: white;
+      border: none;
+      border-radius: 6px;
+      cursor: pointer;
+      font-weight: bold;
+    }
+    .join-btn:hover { background: #218838; }
+    .join-btn:disabled {
+      background: #6c757d;
+      cursor: not-allowed;
+    }
+
+    .no-rooms {
+      text-align: center;
+      color: #6c757d;
+      font-style: italic;
+      padding: 40px;
+    }
+
+    /* 創建房間區域 */
+    .create-room {
+      background: #f8f9fa;
+      padding: 20px;
+      border-radius: 10px;
+      border: 1px solid #dee2e6;
+    }
+    .create-room h3 {
+      margin-bottom: 15px;
+      color: #495057;
+    }
+    .create-room input, .create-room select {
+      width: 100%;
+      padding: 10px;
+      margin: 10px 0;
+      border: 2px solid #ddd;
+      border-radius: 6px;
+      font-size: 14px;
+    }
+    .create-room button {
+      width: 100%;
+      padding: 12px;
+      background: #007bff;
+      color: white;
+      border: none;
+      border-radius: 8px;
+      cursor: pointer;
+      font-weight: bold;
+    }
+    .create-room button:hover { background: #0056b3; }
+
+    /* 房間區段 */
+    .room-section {
+      text-align: center;
+      padding: 20px 0;
+    }
+
+    .room-header {
+      background: #f8f9fa;
+      padding: 20px;
+      border-radius: 10px;
+      margin-bottom: 20px;
+      border: 1px solid #dee2e6;
+    }
+
+    .room-players {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 15px;
+      margin: 20px 0;
+    }
+
+    .player-item {
+      background: white;
+      padding: 15px;
+      border-radius: 10px;
+      border: 2px solid #e9ecef;
+      transition: all 0.2s ease;
+    }
+    .player-item.ready {
+      border-color: #28a745;
+      background: #f8fff9;
+    }
+
+    .player-name {
+      font-weight: bold;
+      margin-bottom: 5px;
+    }
+
+    .player-status {
+      font-size: 0.9em;
+      color: #6c757d;
+    }
+
+    .room-actions {
+      display: flex;
+      justify-content: center;
+      gap: 15px;
+      margin: 30px 0;
+    }
+
+    .room-actions button {
+      padding: 12px 24px;
+      border: none;
+      border-radius: 8px;
+      font-size: 16px;
+      font-weight: bold;
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
+
+    .ready-btn {
+      background: #ffc107;
+      color: #212529;
+    }
+    .ready-btn:hover { background: #e0a800; }
+    .ready-btn.ready {
+      background: #28a745;
+      color: white;
+    }
+    .ready-btn.ready:hover { background: #218838; }
+
+    .start-btn {
+      background: #007bff;
+      color: white;
+    }
+    .start-btn:hover { background: #0056b3; }
+    .start-btn:disabled {
+      background: #6c757d;
+      cursor: not-allowed;
+    }
+
+    .leave-btn {
+      background: #dc3545;
+      color: white;
+    }
+    .leave-btn:hover { background: #c82333; }
+
+    /* 遊戲區段 */
+    .game-section {
+      min-height: 500px;
+      padding: 20px;
+    }
+
+    .game-placeholder {
+      text-align: center;
+      padding: 60px 20px;
+      background: #f8f9fa;
+      border-radius: 15px;
+      border: 3px dashed #007bff;
+    }
+
+    /* 訊息區域 */
+    .messages {
+      height: 150px;
+      overflow-y: auto;
+      background: #f8f9fa;
+      padding: 15px;
+      border-radius: 8px;
+      border: 1px solid #dee2e6;
+      font-family: monospace;
+      font-size: 13px;
+      margin-top: 20px;
+    }
+
+    .message {
+      margin: 3px 0;
+      padding: 2px 5px;
+      border-radius: 3px;
+    }
+    .message.error { background: #f8d7da; color: #721c24; }
+    .message.success { background: #d4edda; color: #155724; }
+    .message.warning { background: #fff3cd; color: #856404; }
+    .message.info { background: #d1ecf1; color: #0c5460; }
+
+    /* 響應式設計 */
+    @media (max-width: 768px) {
+      .lobby-section {
+        grid-template-columns: 1fr;
+        gap: 20px;
+      }
+      
+      .room-players {
+        grid-template-columns: 1fr;
+      }
+      
+      .room-actions {
+        flex-direction: column;
+        align-items: center;
+      }
+      
+      .room-actions button {
+        width: 80%;
+        max-width: 300px;
+      }
+    }
+  </style>
+</head>
+
+<body>
+  <div class="container">
+    <h1>🎮 Rummikub Word - WebSocket 版</h1>
+    
+    <!-- 連接狀態 -->
+    <div id="connection-status" class="connection-status info">
+      正在連接服務器...
+    </div>
+
+    <!-- 玩家資訊 -->
+    <div id="player-info" class="player-info" style="display: none;"></div>
+
+    <!-- 登入區段 -->
+    <div id="login-section" class="section active">
+      <div class="login-section">
+        <h2>👤 設置你的名稱</h2>
+        <div>
+          <input type="text" id="player-name-input" placeholder="輸入你的名稱" maxlength="20" 
+                 onkeypress="if(event.key==='Enter') setPlayerNameFromInput()">
+          <button onclick="setPlayerNameFromInput()">確認</button>
+        </div>
+        <p>輸入名稱後可以看到房間列表</p>
+      </div>
+    </div>
+
+    <!-- 大廳區段 -->
+    <div id="lobby-section" class="section">
+      <div class="lobby-section">
+        <!-- 房間列表 -->
+        <div class="rooms-list">
+          <h3>🏠 房間列表</h3>
+          <div id="rooms-list">
+            <div class="no-rooms">載入中...</div>
+          </div>
+        </div>
+
+        <!-- 創建房間 -->
+        <div class="create-room">
+          <h3>➕ 創建房間</h3>
+          <input type="text" id="room-name-input" placeholder="房間名稱" maxlength="30">
+          <select id="max-players-select">
+            <option value="2">2人</option>
+            <option value="3">3人</option>
+            <option value="4" selected>4人</option>
+            <option value="5">5人</option>
+            <option value="6">6人</option>
+          </select>
+          <button onclick="createRoomFromInput()">創建房間</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 房間區段 -->
+    <div id="room-section" class="section">
+      <div class="room-section">
+        <div id="room-info" class="room-header">
+          <h2>房間資訊</h2>
+        </div>
+
+        <div id="room-players-list" class="room-players">
+          <!-- 動態填充玩家列表 -->
+        </div>
+
+        <div class="room-actions">
+          <button id="ready-btn" class="ready-btn" onclick="toggleReady()">
+            準備
+          </button>
+          <button id="start-game-btn" class="start-btn" onclick="startGame()" disabled>
+            等待玩家準備...
+          </button>
+          <button class="leave-btn" onclick="leaveRoom()">
+            離開房間
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 遊戲區段 -->
+    <div id="game-section" class="section">
+      <div id="game-area" class="game-section">
+        <!-- 遊戲界面將在這裡動態載入 -->
+      </div>
+    </div>
+
+    <!-- 訊息區域 -->
+    <div id="game-messages" class="messages"></div>
+  </div>
+
+  <!-- 載入 WebSocket 客戶端 -->
+  <script src="socket-client.js"></script>
+  <script src="game-websocket.js"></script>
+
+  <script>
+    // HTML 輔助函數
+    function setPlayerNameFromInput() {
+      const input = document.getElementById('player-name-input');
+      const name = input.value.trim();
+      if (name) {
+        setPlayerName(name);
+      }
+    }
+
+    function createRoomFromInput() {
+      const nameInput = document.getElementById('room-name-input');
+      const maxPlayersSelect = document.getElementById('max-players-select');
+      
+      const roomName = nameInput.value.trim();
+      const maxPlayers = parseInt(maxPlayersSelect.value);
+      
+      if (roomName) {
+        createRoom(roomName, maxPlayers);
+        nameInput.value = ''; // 清空輸入框
+      }
+    }
+
+    // 界面切換輔助函數
+    function showSection(sectionId) {
+      // 隱藏所有區段
+      const sections = document.querySelectorAll('.section');
+      sections.forEach(section => {
+        section.classList.remove('active');
+      });
+      
+      // 顯示指定區段
+      const targetSection = document.getElementById(sectionId);
+      if (targetSection) {
+        targetSection.classList.add('active');
+      }
+    }
+
+    // 重寫顯示/隱藏函數以使用新的 class 系統
+    window.showElement = function(id) {
+      if (id.endsWith('-section')) {
+        showSection(id);
+      } else {
+        const el = document.getElementById(id);
+        if (el) el.style.display = 'block';
+      }
+    };
+
+    window.hideElement = function(id) {
+      if (id.endsWith('-section')) {
+        const el = document.getElementById(id);
+        if (el) el.classList.remove('active');
+      } else {
+        const el = document.getElementById(id);
+        if (el) el.style.display = 'none';
+      }
+    };
+
+    // 重新定義顯示函數
+    window.showLobby = function() {
+      showSection('lobby-section');
+      document.getElementById('player-info').style.display = 'block';
+    };
+
+    window.showPlayerInfo = function(player) {
+      const playerInfoEl = document.getElementById('player-info');
+      if (playerInfoEl) {
+        playerInfoEl.innerHTML = `
+          <div class="player-card">
+            <span class="player-name">${player.name}</span>
+            <span class="player-id">(${player.playerId.substring(0, 8)}...)</span>
+          </div>
+        `;
+        playerInfoEl.style.display = 'block';
+      }
+      
+      // 切換到大廳
+      showSection('lobby-section');
+    };
+
+    window.showRoomInterface = function(room) {
+      showSection('room-section');
+      updateRoomInterface(room);
+    };
+
+    window.startGameInterface = function(gameData) {
+      showSection('game-section');
+      
+      const gameAreaEl = document.getElementById('game-area');
+      if (gameAreaEl) {
+        gameAreaEl.innerHTML = `
+          <div class="game-placeholder">
+            <h2>🎮 遊戲開始了！</h2>
+            <p><strong>參與玩家:</strong> ${gameData.players.map(p => p.name).join(', ')}</p>
+            <p>這裡之後會是 Rummikub Word 遊戲界面</p>
+            <br>
+            <button class="leave-btn" onclick="leaveRoom()">離開遊戲</button>
+          </div>
+        `;
+      }
+    };
+  </script>
+</body>
+</html>

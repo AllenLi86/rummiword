@@ -1,3 +1,18 @@
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# 備份檔案
+*.bak
+*.backup
+
+# 臨時檔案
+tmp/
+temp/
+
+
 # Logs
 logs
 *.log
