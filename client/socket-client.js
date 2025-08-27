@@ -1,3 +1,4 @@
+// ========== socket-client.js ==========
 // 前端 WebSocket 客戶端管理
 
 class SocketClient {
@@ -15,11 +16,17 @@ class SocketClient {
 
   init() {
     // 連接到後端服務器
-    const serverUrl = 'http://localhost:3001'; // 改成你的後端地址
+    const serverUrl = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
+      ? 'http://localhost:3001'  // 開發環境
+      : window.location.origin;  // 生產環境
+    
+    console.log('🔗 嘗試連接到:', serverUrl);
     
     this.socket = io(serverUrl, {
       transports: ['websocket', 'polling'],
-      upgrade: true
+      upgrade: true,
+      timeout: 5000,
+      forceNew: true
     });
 
     this.setupConnectionHandlers();
@@ -39,7 +46,9 @@ class SocketClient {
       // 如果之前有設置名稱，重新設置
       const savedName = localStorage.getItem('playerName');
       if (savedName) {
-        this.setPlayerName(savedName);
+        setTimeout(() => {
+          this.setPlayerName(savedName);
+        }, 100);
       }
     });
 
@@ -242,7 +251,9 @@ class SocketClient {
     this.emit('reconnecting', { attempt: this.reconnectAttempts, maxAttempts: this.maxReconnectAttempts });
     
     setTimeout(() => {
-      this.socket.connect();
+      if (this.socket) {
+        this.socket.connect();
+      }
     }, delay);
   }
 

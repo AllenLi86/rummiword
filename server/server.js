@@ -9,14 +9,14 @@ const server = http.createServer(app);
 
 // 設置 CORS
 app.use(cors({
-  origin: ["http://localhost:5173", "http://localhost:3000"], // Vite 開發服務器
+  origin: ["http://localhost:5173", "http://localhost:3000", "http://127.0.0.1:5173", "http://127.0.0.1:3000"],
   credentials: true
 }));
 
 // Socket.IO 設置
 const io = socketIo(server, {
   cors: {
-    origin: ["http://localhost:5173", "http://localhost:3000"],
+    origin: ["http://localhost:5173", "http://localhost:3000", "http://127.0.0.1:5173", "http://127.0.0.1:3000"],
     methods: ["GET", "POST"],
     credentials: true
   }
@@ -355,6 +355,15 @@ app.get('/health', (req, res) => {
     rooms: rooms.size,
     players: players.size,
     timestamp: new Date().toISOString()
+  });
+});
+
+// 基本路由
+app.get('/', (req, res) => {
+  res.json({ 
+    message: 'Rummikub Word Server is running!',
+    rooms: rooms.size,
+    activePlayers: players.size
   });
 });
 
