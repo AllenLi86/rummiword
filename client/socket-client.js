@@ -9,7 +9,7 @@ class SocketClient {
     this.currentRoom = null;
     this.reconnectAttempts = 0;
     this.maxReconnectAttempts = 5;
-    
+
     this.eventHandlers = new Map();
     this.init();
   }
@@ -19,9 +19,9 @@ class SocketClient {
     const serverUrl = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
       ? 'http://localhost:3001'  // 開發環境
       : window.location.origin;  // 生產環境
-    
+
     console.log('🔗 嘗試連接到:', serverUrl);
-    
+
     this.socket = io(serverUrl, {
       transports: ['websocket', 'polling'],
       upgrade: true,
@@ -39,24 +39,19 @@ class SocketClient {
       console.log('✅ WebSocket 連接成功');
       this.isConnected = true;
       this.reconnectAttempts = 0;
-      
+
       // 觸發連接成功事件
       this.emit('connected');
-      
-      // 如果之前有設置名稱，重新設置
-      const savedName = localStorage.getItem('playerName');
-      if (savedName) {
-        setTimeout(() => {
-          this.setPlayerName(savedName);
-        }, 100);
-      }
+
+      // 🔥 完全移除自動設置名稱的邏輯！
+      // 所有名稱設置由 game-websocket.js 的 SessionManager 控制
     });
 
     this.socket.on('disconnect', (reason) => {
       console.warn('❌ WebSocket 斷線:', reason);
       this.isConnected = false;
       this.emit('disconnected', reason);
-      
+
       // 嘗試重連
       if (reason === 'io server disconnect') {
         this.attemptReconnect();
@@ -148,7 +143,7 @@ class SocketClient {
       console.warn('WebSocket 未連接');
       return false;
     }
-    
+
     this.socket.emit('player:setName', { name });
     return true;
   }
@@ -159,7 +154,7 @@ class SocketClient {
       console.warn('請先設置玩家名稱');
       return false;
     }
-    
+
     this.socket.emit('room:create', { roomName, maxPlayers });
     return true;
   }
@@ -170,7 +165,7 @@ class SocketClient {
       console.warn('請先設置玩家名稱');
       return false;
     }
-    
+
     this.socket.emit('room:join', { roomId });
     return true;
   }
@@ -178,7 +173,7 @@ class SocketClient {
   // 離開房間
   leaveRoom() {
     if (!this.isConnected) return false;
-    
+
     this.socket.emit('room:leave');
     return true;
   }
@@ -189,7 +184,7 @@ class SocketClient {
       console.warn('你不在任何房間中');
       return false;
     }
-    
+
     this.socket.emit('player:ready');
     return true;
   }
@@ -200,7 +195,7 @@ class SocketClient {
       console.warn('你不在任何房間中');
       return false;
     }
-    
+
     this.socket.emit('game:start');
     return true;
   }
@@ -246,10 +241,10 @@ class SocketClient {
 
     this.reconnectAttempts++;
     const delay = Math.min(1000 * Math.pow(2, this.reconnectAttempts), 30000);
-    
+
     console.log(`嘗試重連... (${this.reconnectAttempts}/${this.maxReconnectAttempts})`);
     this.emit('reconnecting', { attempt: this.reconnectAttempts, maxAttempts: this.maxReconnectAttempts });
-    
+
     setTimeout(() => {
       if (this.socket) {
         this.socket.connect();
