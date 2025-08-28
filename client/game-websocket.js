@@ -418,40 +418,6 @@ window.createRoomFromInput = function() {
   }
 };
 
-// // ========== 頁面載入時初始化 ==========
-// document.addEventListener('DOMContentLoaded', () => {
-//   console.log('🚀 初始化 WebSocket 連接...');
-  
-//   // 延遲初始化，確保 SocketClient 類別已載入
-//   setTimeout(() => {
-//     initializeWebSocket();
-    
-//     // 檢查是否有保存的玩家名稱
-//     const savedName = localStorage.getItem('playerName');
-//     if (savedName) {
-//       const nameInput = document.getElementById('player-name-input');
-//       if (nameInput) {
-//         nameInput.value = savedName;
-//         // 添加提示文字
-//         nameInput.placeholder = `上次使用: ${savedName}`;
-//       }
-      
-//       // 🔥 新增：顯示歡迎訊息但不自動設置名稱
-//       updateConnectionStatus(`歡迎回來！上次名稱: ${savedName}`, 'info');
-      
-//       // 🔥 修改：不要自動設置名稱，讓用戶選擇
-//       // 移除自動設置的代碼
-//       /*
-//       setTimeout(() => {
-//         if (socketClient && socketClient.isConnected) {
-//           socketClient.setPlayerName(savedName);
-//         }
-//       }, 1500);
-//       */
-//     }
-//   }, 100);
-// });
-
 // 添加清除保存名稱的功能
 window.clearSavedName = function() {
   localStorage.removeItem('playerName');
