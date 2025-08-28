@@ -432,17 +432,72 @@ document.addEventListener('DOMContentLoaded', () => {
       const nameInput = document.getElementById('player-name-input');
       if (nameInput) {
         nameInput.value = savedName;
+        // 添加提示文字
+        nameInput.placeholder = `上次使用: ${savedName}`;
       }
       
-      // 等待連接後自動設置名稱
+      // 🔥 新增：顯示歡迎訊息但不自動設置名稱
+      updateConnectionStatus(`歡迎回來！上次名稱: ${savedName}`, 'info');
+      
+      // 🔥 修改：不要自動設置名稱，讓用戶選擇
+      // 移除自動設置的代碼
+      /*
       setTimeout(() => {
         if (socketClient && socketClient.isConnected) {
           socketClient.setPlayerName(savedName);
         }
       }, 1500);
+      */
     }
   }, 100);
 });
+
+// 添加清除保存名稱的功能
+window.clearSavedName = function() {
+  localStorage.removeItem('playerName');
+  const nameInput = document.getElementById('player-name-input');
+  if (nameInput) {
+    nameInput.value = '';
+    nameInput.placeholder = '輸入你的名稱';
+  }
+  showMessage('已清除保存的名稱', 'info');
+  
+  // 如果當前有連接，也斷開
+  if (socketClient && socketClient.currentPlayer) {
+    if (socketClient.currentRoom) {
+      socketClient.leaveRoom();
+    }
+  }
+};
+
+// 修改 showPlayerInfo 函數，添加更改名稱的選項
+function showPlayerInfo(player) {
+  const playerInfoEl = document.getElementById('player-info');
+  if (playerInfoEl) {
+    playerInfoEl.innerHTML = `
+      <div class="player-card">
+        <span class="player-name">${player.name}</span>
+        <span class="player-id">(${player.playerId.substring(0, 8)}...)</span>
+        <button class="change-name-btn" onclick="changeName()" title="更改名稱">✏️</button>
+      </div>
+    `;
+    playerInfoEl.style.display = 'block';
+  }
+}
+
+// 更改名稱功能
+window.changeName = function() {
+  const newName = prompt('請輸入新的名稱:', socketClient.currentPlayer?.name || '');
+  if (newName && newName.trim() && newName.trim() !== socketClient.currentPlayer?.name) {
+    // 如果在房間中，先離開
+    if (socketClient.currentRoom) {
+      socketClient.leaveRoom();
+    }
+    
+    // 設置新名稱
+    socketClient.setPlayerName(newName.trim());
+  }
+};
 
 // 頁面卸載時清理連接
 window.addEventListener('beforeunload', () => {
@@ -450,3 +505,93 @@ window.addEventListener('beforeunload', () => {
     socketClient.destroy();
   }
 });
+
+// 會話管理
+class SessionManager {
+  constructor() {
+    this.sessionId = this.generateSessionId();
+    this.startTime = Date.now();
+  }
+
+  generateSessionId() {
+    return 'session_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
+  }
+
+  // 檢查是否是新會話（超過30分鐘算新會話）
+  isNewSession() {
+    const lastSession = localStorage.getItem('lastSessionTime');
+    if (!lastSession) return true;
+    
+    const timeDiff = Date.now() - parseInt(lastSession);
+    return timeDiff > 30 * 60 * 1000; // 30分鐘
+  }
+
+  // 更新會話時間
+  updateSession() {
+    localStorage.setItem('lastSessionTime', Date.now().toString());
+  }
+
+  // 清除會話
+  clearSession() {
+    localStorage.removeItem('lastSessionTime');
+    localStorage.removeItem('playerName');
+  }
+}
+
+// 初始化會話管理器
+const sessionManager = new SessionManager();
+
+// 修改初始化邏輯
+document.addEventListener('DOMContentLoaded', () => {
+  console.log('🚀 初始化 WebSocket 連接...');
+  
+  setTimeout(() => {
+    initializeWebSocket();
+    
+    const savedName = localStorage.getItem('playerName');
+    const isNewSession = sessionManager.isNewSession();
+    
+    if (savedName && !isNewSession) {
+      // 舊會話，自動填入名稱但不自動設置
+      const nameInput = document.getElementById('player-name-input');
+      if (nameInput) {
+        nameInput.value = savedName;
+        nameInput.placeholder = `上次使用: ${savedName}`;
+      }
+      updateConnectionStatus(`歡迎回來，${savedName}！點擊確認繼續`, 'info');
+      
+    } else if (savedName && isNewSession) {
+      // 新會話，提供選擇
+      const nameInput = document.getElementById('player-name-input');
+      if (nameInput) {
+        nameInput.value = savedName;
+        nameInput.placeholder = `之前使用過: ${savedName}`;
+      }
+      updateConnectionStatus('可以使用之前的名稱，或輸入新名稱', 'info');
+      
+    } else {
+      // 全新用戶
+      updateConnectionStatus('歡迎！請設置你的名稱', 'info');
+    }
+  }, 100);
+});
+
+// 修改設置名稱的函數，加入會話更新
+window.setPlayerName = function(name) {
+  if (!name || name.trim() === '') {
+    showMessage('請輸入有效的名稱', 'error');
+    return;
+  }
+  
+  if (socketClient) {
+    const success = socketClient.setPlayerName(name.trim());
+    if (success) {
+      // 更新會話
+      sessionManager.updateSession();
+    } else {
+      showMessage('設置名稱失敗，請檢查網絡連接', 'error');
+    }
+  } else {
+    showMessage('WebSocket 未初始化', 'error');
+  }
+};
