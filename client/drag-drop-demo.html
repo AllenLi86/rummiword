@@ -1,0 +1,505 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>🎮 Rummiword 拖拽系統演示</title>
+  <style>
+    /* 基礎樣式 */
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: 'Segoe UI', Arial, sans-serif;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      min-height: 100vh;
+      padding: 20px;
+    }
+
+    .demo-container {
+      max-width: 1200px;
+      margin: 0 auto;
+      background: rgba(255,255,255,0.95);
+      border-radius: 20px;
+      padding: 30px;
+      box-shadow: 0 20px 60px rgba(0,0,0,0.2);
+    }
+
+    .demo-header {
+      text-align: center;
+      margin-bottom: 30px;
+    }
+
+    .demo-header h1 {
+      color: #333;
+      font-size: 2.5rem;
+      margin-bottom: 10px;
+    }
+
+    .demo-header p {
+      color: #666;
+      font-size: 1.1rem;
+    }
+
+    .feature-badges {
+      display: flex;
+      justify-content: center;
+      gap: 10px;
+      margin: 20px 0;
+      flex-wrap: wrap;
+    }
+
+    .badge {
+      background: #007bff;
+      color: white;
+      padding: 5px 12px;
+      border-radius: 15px;
+      font-size: 12px;
+      font-weight: bold;
+    }
+
+    .badge.success { background: #28a745; }
+    .badge.warning { background: #ffc107; color: #333; }
+    .badge.info { background: #17a2b8; }
+
+    .demo-controls {
+      text-align: center;
+      margin: 30px 0;
+    }
+
+    .demo-btn {
+      background: linear-gradient(145deg, #007bff, #0056b3);
+      color: white;
+      border: none;
+      padding: 12px 24px;
+      margin: 0 10px;
+      border-radius: 10px;
+      font-weight: bold;
+      cursor: pointer;
+      transition: all 0.3s ease;
+      box-shadow: 0 4px 15px rgba(0,123,255,0.3);
+    }
+
+    .demo-btn:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 6px 20px rgba(0,123,255,0.4);
+    }
+
+    .demo-btn.success {
+      background: linear-gradient(145deg, #28a745, #1e7e34);
+      box-shadow: 0 4px 15px rgba(40,167,69,0.3);
+    }
+
+    .demo-btn.danger {
+      background: linear-gradient(145deg, #dc3545, #c82333);
+      box-shadow: 0 4px 15px rgba(220,53,69,0.3);
+    }
+
+    .demo-btn.secondary {
+      background: linear-gradient(145deg, #6c757d, #545b62);
+      box-shadow: 0 4px 15px rgba(108,117,125,0.3);
+    }
+
+    #game-area {
+      min-height: 600px;
+      background: rgba(0,0,0,0.05);
+      border-radius: 15px;
+      padding: 20px;
+      margin: 20px 0;
+    }
+
+    .loading-message {
+      text-align: center;
+      padding: 60px 20px;
+      color: #666;
+      font-size: 18px;
+    }
+
+    .features-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+      gap: 20px;
+      margin: 30px 0;
+    }
+
+    .feature-card {
+      background: #f8f9fa;
+      padding: 20px;
+      border-radius: 12px;
+      border-left: 4px solid #007bff;
+    }
+
+    .feature-card h3 {
+      color: #333;
+      margin-bottom: 10px;
+    }
+
+    .feature-card p {
+      color: #666;
+      font-size: 14px;
+    }
+
+    .status-bar {
+      background: #e9ecef;
+      border-radius: 10px;
+      padding: 15px;
+      margin: 20px 0;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 15px;
+    }
+
+    .status-item {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-weight: bold;
+      color: #333;
+    }
+
+    .status-indicator {
+      width: 12px;
+      height: 12px;
+      border-radius: 50%;
+      background: #dc3545;
+    }
+
+    .status-indicator.active {
+      background: #28a745;
+    }
+
+    @media (max-width: 768px) {
+      .demo-container {
+        padding: 20px;
+        border-radius: 15px;
+      }
+      
+      .demo-header h1 {
+        font-size: 2rem;
+      }
+      
+      .demo-btn {
+        display: block;
+        width: 100%;
+        margin: 5px 0;
+      }
+      
+      .features-grid {
+        grid-template-columns: 1fr;
+      }
+      
+      .status-bar {
+        flex-direction: column;
+        text-align: center;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="demo-container">
+    <div class="demo-header">
+      <h1>🎮 Rummiword 拖拽系統演示</h1>
+      <p>HTML5 拖拽 API + 觸控支援的字母磚遊戲界面</p>
+      
+      <div class="feature-badges">
+        <span class="badge success">✅ HTML5 拖拽</span>
+        <span class="badge success">📱 觸控支援</span>
+        <span class="badge info">🎨 響應式設計</span>
+        <span class="badge warning">🧪 測試版本</span>
+      </div>
+    </div>
+
+    <!-- 系統狀態 -->
+    <div class="status-bar">
+      <div class="status-item">
+        <div id="drag-status" class="status-indicator"></div>
+        <span>拖拽系統</span>
+      </div>
+      <div class="status-item">
+        <div id="board-status" class="status-indicator"></div>
+        <span>棋盤系統</span>
+      </div>
+      <div class="status-item">
+        <div id="touch-status" class="status-indicator"></div>
+        <span>觸控支援</span>
+      </div>
+      <div class="status-item">
+        <span id="device-type">設備: 檢測中...</span>
+      </div>
+    </div>
+
+    <!-- 控制按鈕 -->
+    <div class="demo-controls">
+      <button class="demo-btn success" onclick="startDemoGame()">
+        🚀 啟動演示
+      </button>
+      <button class="demo-btn" onclick="loadTestData()">
+        🎲 載入測試數據
+      </button>
+      <button class="demo-btn secondary" onclick="toggleDebugMode()">
+        🛠️ 調試模式
+      </button>
+      <button class="demo-btn danger" onclick="resetDemo()">
+        🔄 重置演示
+      </button>
+    </div>
+
+    <!-- 遊戲區域 -->
+    <div id="game-area">
+      <div class="loading-message">
+        <h3>🔧 正在載入拖拽系統...</h3>
+        <p>請稍候，系統正在初始化所有組件</p>
+      </div>
+    </div>
+
+    <!-- 功能說明 -->
+    <div class="features-grid">
+      <div class="feature-card">
+        <h3>🎯 拖拽功能</h3>
+        <p>支援將字母磚從手牌拖拽到棋盤，或在棋盤上重新排列。包含視覺反饋和動畫效果。</p>
+      </div>
+      
+      <div class="feature-card">
+        <h3>📱 觸控支援</h3>
+        <p>完整的手機和平板觸控支援，包括觸控拖拽、縮放適應和觸控反饋。</p>
+      </div>
+      
+      <div class="feature-card">
+        <h3>🏁 智能棋盤</h3>
+        <p>15x15 棋盤格子，自動檢測單詞形成，包含合法性驗證和分數計算。</p>
+      </div>
+      
+      <div class="feature-card">
+        <h3>⭐ 萬用字母</h3>
+        <p>支援萬用字母磚設置，雙擊選擇字母，包含視覺指示器和狀態管理。</p>
+      </div>
+      
+      <div class="feature-card">
+        <h3>🎨 現代UI</h3>
+        <p>漸層背景、毛玻璃效果、流暢動畫和響應式設計，提供優質的用戶體驗。</p>
+      </div>
+      
+      <div class="feature-card">
+        <h3>🛠️ 調試工具</h3>
+        <p>內建調試面板、性能監控、自動保存和鍵盤快捷鍵，便於開發和測試。</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- 載入腳本 -->
+  <script>
+    // 載入狀態管理
+    let systemsLoaded = {
+      dragDrop: false,
+      board: false,
+      ui: false
+    };
+
+    // 檢測設備類型
+    function detectDevice() {
+      const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+      const isTablet = /(iPad|Android.*Mobile)/i.test(navigator.userAgent);
+      const hasTouch = 'ontouchstart' in window;
+      
+      document.getElementById('device-type').textContent = 
+        `設備: ${isMobile ? '手機' : isTablet ? '平板' : '桌面'}${hasTouch ? ' (觸控)' : ''}`;
+      
+      // 更新觸控支援狀態
+      const touchStatus = document.getElementById('touch-status');
+      if (hasTouch) {
+        touchStatus.classList.add('active');
+      }
+    }
+
+    // 更新系統狀態
+    function updateSystemStatus() {
+      const dragStatus = document.getElementById('drag-status');
+      const boardStatus = document.getElementById('board-status');
+      
+      if (typeof DragDropManager !== 'undefined') {
+        systemsLoaded.dragDrop = true;
+        dragStatus.classList.add('active');
+      }
+      
+      if (typeof GameBoard !== 'undefined') {
+        systemsLoaded.board = true;
+        boardStatus.classList.add('active');
+      }
+    }
+
+    // 啟動演示遊戲
+    function startDemoGame() {
+      console.log('🚀 啟動演示遊戲');
+      
+      // 檢查系統是否已載入
+      if (!systemsLoaded.dragDrop || !systemsLoaded.board) {
+        alert('⚠️ 系統尚未完全載入，請稍後再試');
+        return;
+      }
+      
+      // 模擬遊戲數據
+      const mockGameData = {
+        currentPlayerName: '演示玩家',
+        round: 1,
+        players: [
+          { name: '演示玩家', id: 'demo-player' },
+          { name: 'AI對手1', id: 'ai-1' },
+          { name: 'AI對手2', id: 'ai-2' }
+        ],
+        currentPlayer: 0
+      };
+      
+      // 啟動增強版界面
+      if (typeof window.startGameInterface === 'function') {
+        window.startGameInterface(mockGameData);
+      } else {
+        console.error('❌ 遊戲界面函數未載入');
+      }
+    }
+
+    // 載入測試數據
+    function loadTestData() {
+      if (typeof window.loadMockData === 'function') {
+        window.loadMockData();
+      } else {
+        alert('🎲 請先啟動演示遊戲');
+      }
+    }
+
+    // 切換調試模式
+    function toggleDebugMode() {
+      if (typeof window.toggleDebugPanel === 'function') {
+        window.toggleDebugPanel();
+      } else {
+        alert('🛠️ 調試功能需要先啟動演示');
+      }
+    }
+
+    // 重置演示
+    function resetDemo() {
+      if (confirm('確定要重置演示嗎？這將清除所有數據。')) {
+        location.reload();
+      }
+    }
+
+    // 頁面載入完成後的初始化
+    document.addEventListener('DOMContentLoaded', function() {
+      console.log('📄 演示頁面載入完成');
+      
+      detectDevice();
+      
+      // 定期檢查系統狀態
+      const statusChecker = setInterval(() => {
+        updateSystemStatus();
+        
+        // 如果所有系統都載入完成，停止檢查
+        if (Object.values(systemsLoaded).every(loaded => loaded)) {
+          clearInterval(statusChecker);
+          console.log('✅ 所有系統組件載入完成');
+          
+          // 顯示成功訊息
+          const gameArea = document.getElementById('game-area');
+          if (gameArea.querySelector('.loading-message')) {
+            gameArea.innerHTML = `
+              <div class="loading-message">
+                <h3 style="color: #28a745;">✅ 拖拽系統載入完成！</h3>
+                <p>點擊上方的 "🚀 啟動演示" 按鈕開始體驗</p>
+                <div style="margin-top: 20px; font-size: 14px; color: #666;">
+                  <p><strong>操作提示：</strong></p>
+                  <p>• 拖拽字母磚到棋盤組成單詞</p>
+                  <p>• 雙擊萬用字母磚(★)設置字母</p>
+                  <p>• 按 Ctrl+Shift+D 開啟調試面板</p>
+                  <p>• 支援手機觸控拖拽操作</p>
+                </div>
+              </div>
+            `;
+          }
+        }
+      }, 500);
+      
+      // 10秒後如果還沒載入完成，顯示錯誤訊息
+      setTimeout(() => {
+        if (!Object.values(systemsLoaded).every(loaded => loaded)) {
+          console.warn('⚠️ 某些系統組件載入超時');
+          const gameArea = document.getElementById('game-area');
+          gameArea.innerHTML = `
+            <div class="loading-message">
+              <h3 style="color: #dc3545;">⚠️ 系統載入超時</h3>
+              <p>請檢查網絡連接或重新載入頁面</p>
+              <button class="demo-btn" onclick="location.reload()">🔄 重新載入</button>
+            </div>
+          `;
+        }
+      }, 10000);
+    });
+
+    // 錯誤處理
+    window.addEventListener('error', function(e) {
+      console.error('❌ 頁面錯誤:', e.error);
+    });
+
+    // 提供全局調試函數
+    window.demoDebug = {
+      checkSystems: () => {
+        console.log('🔍 系統狀態檢查:');
+        console.log('DragDropManager:', typeof DragDropManager !== 'undefined');
+        console.log('GameBoard:', typeof GameBoard !== 'undefined');
+        console.log('EnhancedTileUIManager:', typeof EnhancedTileUIManager !== 'undefined');
+        console.log('enhancedTileUI:', typeof enhancedTileUI !== 'undefined');
+      },
+      getGameState: () => {
+        if (typeof enhancedTileUI !== 'undefined' && enhancedTileUI) {
+          return enhancedTileUI.getGameState();
+        }
+        return null;
+      }
+    };
+
+    console.log('🎮 演示頁面腳本載入完成');
+    console.log('💡 使用 window.demoDebug 進行系統調試');
+  </script>
+
+  <!-- 這裡需要載入你的拖拽系統腳本 -->
+  <!-- 
+  <script src="drag-drop-system.js"></script>
+  <script src="game-board.js"></script>
+  <script src="enhanced-tile-ui.js"></script>
+  <script src="drag-drop-integration.js"></script>
+  -->
+
+  <!-- 模擬腳本載入（實際使用時請替換為真實的腳本路徑） -->
+  <script>
+    // 模擬腳本載入延遲
+    setTimeout(() => {
+      console.log('📦 模擬拖拽系統腳本載入...');
+      // 這裡會載入實際的拖拽系統
+      
+      // 模擬類別定義（實際中會從腳本文件載入）
+      window.DragDropManager = class {
+        constructor() {
+          console.log('🎯 DragDropManager 模擬載入');
+        }
+      };
+      
+      window.GameBoard = class {
+        constructor() {
+          console.log('🏁 GameBoard 模擬載入');
+        }
+      };
+      
+      window.EnhancedTileUIManager = class {
+        constructor() {
+          console.log('✨ EnhancedTileUIManager 模擬載入');
+        }
+      };
+      
+      console.log('✅ 所有拖拽系統組件模擬載入完成');
+    }, 2000);
+  </script>
+</body>
+</html>
