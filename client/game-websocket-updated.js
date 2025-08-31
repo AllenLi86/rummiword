@@ -1,5 +1,5 @@
-// ========== game-websocket.js ==========
-// 集成到遊戲系統的 WebSocket 邏輯
+// ========== game-websocket-updated.js ==========
+// 整合字母磚系統的 WebSocket 遊戲邏輯 - 更新版本
 
 // 全局 socket 客戶端實例
 let socketClient = null;
@@ -16,6 +16,8 @@ function initializeWebSocket() {
 
 function setupSocketEventHandlers() {
   if (!socketClient) return;
+  
+  // ========== 原有的連接和房間事件 ==========
   
   // 連接狀態
   socketClient.on('connected', () => {
@@ -102,21 +104,146 @@ function setupSocketEventHandlers() {
     showMessage(data.message, 'success');
   });
 
-  // 遊戲事件
+  // ========== 遊戲事件 - 整合字母磚系統 ==========
+  
   socketClient.on('gameStarted', (data) => {
     console.log('🎮 遊戲開始!', data);
-    startGameInterface(data.gameData);
-    showMessage('遊戲開始！', 'success');
+    
+    // 使用字母磚遊戲界面（如果可用）
+    if (typeof startGameInterface === 'function') {
+      startGameInterface(data.gameData);
+    } else {
+      // 後備方案：使用原始界面
+      startBasicGameInterface(data.gameData);
+    }
+    
+    showMessage('遊戲開始！字母磚系統已啟動', 'success');
+    
+    // 初始化字母磚系統擴展
+    if (typeof initializeTileSystemExtension === 'function') {
+      setTimeout(initializeTileSystemExtension, 1000);
+    }
+  });
+
+  // ========== 字母磚系統事件 ==========
+  
+  // 手牌更新事件
+  socketClient.on('myHandUpdate', (data) => {
+    console.log('🎯 收到手牌更新:', data);
+    if (typeof tileUIManager !== 'undefined' && tileUIManager.updateMyHand) {
+      tileUIManager.updateMyHand(data);
+    }
+  });
+
+  // 遊戲狀態更新
+  socketClient.on('gameStateUpdate', (data) => {
+    console.log('🎮 遊戲狀態更新:', data);
+    if (typeof tileUIManager !== 'undefined' && tileUIManager.updateGameState) {
+      tileUIManager.updateGameState(data);
+    }
+  });
+
+  // 字母磚抽取結果
+  socketClient.on('tileDrawn', (data) => {
+    console.log('🎲 抽磚結果:', data);
+    showMessage(`抽到 ${data.tiles ? data.tiles.length : data.count || 1} 張新磚塊`, 'success');
+    
+    // 自動請求更新手牌
+    setTimeout(() => {
+      if (socketClient && socketClient.requestMyHand) {
+        socketClient.requestMyHand();
+      }
+    }, 100);
+  });
+
+  // 萬用字母設置結果
+  socketClient.on('blankTileSet', (data) => {
+    console.log('🌟 萬用字母設置結果:', data);
+    if (data.success) {
+      showMessage(`萬用字母設置為 ${data.letter}`, 'success');
+      if (socketClient && socketClient.requestMyHand) {
+        socketClient.requestMyHand();
+      }
+    } else {
+      showMessage(`設置萬用字母失敗: ${data.message || '未知錯誤'}`, 'error');
+    }
+  });
+
+  // 單詞驗證結果
+  socketClient.on('wordsValidation', (data) => {
+    console.log('📝 單詞驗證結果:', data);
+    if (data.valid) {
+      showMessage(`單詞有效！得分: ${data.score || 0} 分`, 'success');
+    } else {
+      showMessage(`無效單詞: ${data.message || '單詞不在字典中'}`, 'error');
+    }
+  });
+
+  // 回合變更通知
+  socketClient.on('turnChanged', (data) => {
+    console.log('🔄 回合變更:', data);
+    const isMyTurn = data.currentPlayerId === socketClient.currentPlayer?.playerId;
+    
+    showMessage(`現在是 ${data.currentPlayerName} 的回合`, isMyTurn ? 'success' : 'info');
+    
+    // 更新 UI 中的當前玩家顯示
+    const currentPlayerEl = document.querySelector('.current-player strong');
+    if (currentPlayerEl) {
+      currentPlayerEl.textContent = data.currentPlayerName;
+      currentPlayerEl.parentElement.style.color = isMyTurn ? '#007bff' : '#666';
+    }
+  });
+
+  // 回合提交結果
+  socketClient.on('turnSubmitted', (data) => {
+    console.log('📤 回合提交結果:', data);
+    if (data.success) {
+      showMessage(`回合提交成功！得分: ${data.score || 0} 分`, 'success');
+      
+      // 更新遊戲狀態
+      if (socketClient && socketClient.requestMyHand) {
+        socketClient.requestMyHand();
+      }
+      if (socketClient && socketClient.requestGameState) {
+        socketClient.requestGameState();
+      }
+    } else {
+      showMessage(`回合提交失敗: ${data.message || '未知錯誤'}`, 'error');
+    }
+  });
+
+  // 遊戲結束事件
+  socketClient.on('gameEnded', (data) => {
+    console.log('🏁 遊戲結束:', data);
+    
+    let message = `遊戲結束！🏆 獲勝者: ${data.winner || '未知'}`;
+    if (data.scores && Array.isArray(data.scores)) {
+      message += `\n最終得分: ${data.scores.join(', ')}`;
+    }
+    
+    showMessage(message, 'success');
+    
+    // 顯示結果並提供返回大廳選項
+    setTimeout(() => {
+      if (confirm('遊戲已結束！\n\n' + message + '\n\n是否返回大廳？')) {
+        showLobby();
+      }
+    }, 3000);
   });
 
   // 錯誤處理
   socketClient.on('serverError', (error) => {
     console.error('❌ 服務器錯誤:', error);
-    showMessage(error.message, 'error');
+    showMessage(error.message || '服務器錯誤', 'error');
+  });
+
+  socketClient.on('tileGameError', (data) => {
+    console.error('❌ 字母磚遊戲錯誤:', data);
+    showMessage(`遊戲錯誤: ${data.message || '未知錯誤'}`, 'error');
   });
 }
 
-// ========== UI 集成函數 ==========
+// ========== UI 集成函數 - 保持原有功能 ==========
 
 // 更新連接狀態
 function updateConnectionStatus(message, type = 'info') {
@@ -180,7 +307,6 @@ function getRoomStatusText(status) {
 
 // 顯示房間界面
 function showRoomInterface(room) {
-  // 切換到房間區段
   showSection('room-section');
   updateRoomInterface(room);
 }
@@ -255,6 +381,70 @@ function enableStartButton(enabled) {
   }
 }
 
+// 界面切換輔助函數
+function showSection(sectionId) {
+  const sections = document.querySelectorAll('.section');
+  sections.forEach(section => {
+    section.classList.remove('active');
+  });
+  
+  const targetSection = document.getElementById(sectionId);
+  if (targetSection) {
+    targetSection.classList.add('active');
+  }
+}
+
+// ========== 遊戲界面函數 ==========
+
+// 開始遊戲界面 - 整合字母磚系統
+function startGameInterface(gameData) {
+  console.log('🎮 啟動字母磚遊戲界面', gameData);
+  
+  showSection('game-section');
+  
+  // 如果有字母磚 UI 管理器，使用它
+  if (typeof tileUIManager !== 'undefined' && tileUIManager.createGameInterface) {
+    tileUIManager.createGameInterface(gameData);
+    
+    // 請求我的手牌數據
+    setTimeout(() => {
+      if (socketClient && socketClient.requestMyHand) {
+        socketClient.requestMyHand();
+      }
+    }, 1000);
+    
+  } else {
+    // 後備方案：基本遊戲界面
+    startBasicGameInterface(gameData);
+  }
+}
+
+// 基本遊戲界面（後備方案）
+function startBasicGameInterface(gameData) {
+  const gameAreaEl = document.getElementById('game-area');
+  if (gameAreaEl) {
+    gameAreaEl.innerHTML = `
+      <div class="game-placeholder">
+        <h2>🎮 遊戲開始了！</h2>
+        <div class="game-info">
+          <p><strong>參與玩家:</strong> ${gameData.players.map(p => p.name).join(', ')}</p>
+          <p><strong>當前回合:</strong> ${gameData.round}</p>
+          <p><strong>遊戲狀態:</strong> ${gameData.status}</p>
+        </div>
+        <div class="game-placeholder-content">
+          <p>🔧 字母磚界面載入中...</p>
+          <p>📝 請稍候，系統正在初始化字母磚功能</p>
+          <button onclick="requestMyHand()" class="control-btn">🎯 請求手牌</button>
+          <button onclick="testTileSystem()" class="control-btn">🧪 測試系統</button>
+        </div>
+        <div class="game-actions">
+          <button class="leave-btn" onclick="leaveRoom()">離開遊戲</button>
+        </div>
+      </div>
+    `;
+  }
+}
+
 // 顯示訊息
 function showMessage(message, type = 'info') {
   const messageEl = document.getElementById('game-messages');
@@ -274,47 +464,6 @@ function showMessage(message, type = 'info') {
   console.log(`[${type.toUpperCase()}] ${message}`);
 }
 
-// 界面切換輔助函數
-function showSection(sectionId) {
-  // 隱藏所有區段
-  const sections = document.querySelectorAll('.section');
-  sections.forEach(section => {
-    section.classList.remove('active');
-  });
-  
-  // 顯示指定區段
-  const targetSection = document.getElementById(sectionId);
-  if (targetSection) {
-    targetSection.classList.add('active');
-  }
-}
-
-// 開始遊戲界面
-function startGameInterface(gameData) {
-  showSection('game-section');
-  
-  const gameAreaEl = document.getElementById('game-area');
-  if (gameAreaEl) {
-    gameAreaEl.innerHTML = `
-      <div class="game-placeholder">
-        <h2>🎮 遊戲開始了！</h2>
-        <div class="game-info">
-          <p><strong>參與玩家:</strong> ${gameData.players.map(p => p.name).join(', ')}</p>
-          <p><strong>當前回合:</strong> ${gameData.round}</p>
-          <p><strong>遊戲狀態:</strong> ${gameData.status}</p>
-        </div>
-        <div class="game-placeholder-content">
-          <p>🔧 這裡之後會是 Rummikub Word 遊戲界面</p>
-          <p>📝 包含字母磚、遊戲版面、拖拽功能等...</p>
-        </div>
-        <div class="game-actions">
-          <button class="leave-btn" onclick="leaveRoom()">離開遊戲</button>
-        </div>
-      </div>
-    `;
-  }
-}
-
 // ========== 全局函數供 HTML 調用 ==========
 
 // 設置玩家名稱
@@ -326,7 +475,12 @@ window.setPlayerName = function(name) {
   
   if (socketClient) {
     const success = socketClient.setPlayerName(name.trim());
-    if (!success) {
+    if (success) {
+      // 更新會話
+      if (typeof sessionManager !== 'undefined') {
+        sessionManager.updateSession();
+      }
+    } else {
       showMessage('設置名稱失敗，請檢查網絡連接', 'error');
     }
   } else {
@@ -421,71 +575,141 @@ window.createRoomFromInput = function() {
 // 添加清除保存名稱的功能
 window.clearSavedName = function() {
   localStorage.removeItem('playerName');
+  localStorage.removeItem('lastSessionTime');
+  
   const nameInput = document.getElementById('player-name-input');
   if (nameInput) {
     nameInput.value = '';
     nameInput.placeholder = '輸入你的名稱';
   }
-  showMessage('已清除保存的名稱', 'info');
   
-  // 如果當前有連接，也斷開
-  if (socketClient && socketClient.currentPlayer) {
-    if (socketClient.currentRoom) {
-      socketClient.leaveRoom();
+  showMessage('已清除保存的名稱', 'info');
+};
+
+// ========== 字母磚遊戲控制函數 ==========
+
+// 請求我的手牌
+window.requestMyHand = function() {
+  if (socketClient && socketClient.requestMyHand) {
+    const success = socketClient.requestMyHand();
+    if (success) {
+      showMessage('正在載入手牌...', 'info');
+    } else {
+      showMessage('無法請求手牌，請確認在遊戲中', 'warning');
     }
+    return success;
+  }
+  showMessage('字母磚系統未初始化', 'error');
+  return false;
+};
+
+// 抽取字母磚
+window.drawTile = function() {
+  if (socketClient && socketClient.drawTile) {
+    socketClient.drawTile();
+  } else {
+    showMessage('抽磚功能不可用', 'error');
   }
 };
 
-// 修改 showPlayerInfo 函數，添加更改名稱的選項
-function showPlayerInfo(player) {
-  const playerInfoEl = document.getElementById('player-info');
-  if (playerInfoEl) {
-    playerInfoEl.innerHTML = `
-      <div class="player-card">
-        <span class="player-name">${player.name}</span>
-        <span class="player-id">(${player.playerId.substring(0, 8)}...)</span>
-        <button class="change-name-btn" onclick="changeName()" title="更改名稱">✏️</button>
-      </div>
-    `;
-    playerInfoEl.style.display = 'block';
-  }
-}
-
-// 更改名稱功能
-window.changeName = function() {
-  const newName = prompt('請輸入新的名稱:', socketClient.currentPlayer?.name || '');
-  if (newName && newName.trim() && newName.trim() !== socketClient.currentPlayer?.name) {
-    // 如果在房間中，先離開
-    if (socketClient.currentRoom) {
-      socketClient.leaveRoom();
+// 結束回合
+window.endTurn = function() {
+  if (socketClient && socketClient.endTurn) {
+    const selectedTiles = typeof tileUIManager !== 'undefined' 
+      ? tileUIManager.getSelectedTiles() 
+      : [];
+    
+    socketClient.endTurn(selectedTiles);
+    
+    if (typeof tileUIManager !== 'undefined' && tileUIManager.clearSelection) {
+      tileUIManager.clearSelection();
     }
     
-    // 設置新名稱
-    socketClient.setPlayerName(newName.trim());
+    showMessage('回合已結束', 'info');
+  } else {
+    showMessage('結束回合功能不可用', 'error');
   }
 };
 
-// 頁面卸載時清理連接
-window.addEventListener('beforeunload', () => {
-  if (socketClient) {
-    socketClient.destroy();
+// 洗牌手牌
+window.shuffleHand = function() {
+  if (socketClient && socketClient.shuffleHand) {
+    socketClient.shuffleHand();
+  } else {
+    showMessage('洗牌功能不可用', 'error');
   }
-});
+};
 
-// 會話管理
+// 檢查單詞
+window.checkWords = function() {
+  if (!socketClient || !socketClient.checkWords) {
+    showMessage('檢查單詞功能不可用', 'error');
+    return;
+  }
+
+  const selectedTiles = typeof tileUIManager !== 'undefined' 
+    ? tileUIManager.getSelectedTiles() 
+    : [];
+
+  if (selectedTiles.length === 0) {
+    showMessage('請先選擇字母磚', 'warning');
+    return;
+  }
+  
+  socketClient.checkWords(selectedTiles);
+};
+
+// 清除選擇
+window.clearSelection = function() {
+  if (typeof tileUIManager !== 'undefined' && tileUIManager.clearSelection) {
+    tileUIManager.clearSelection();
+    showMessage('已清除選擇', 'info');
+  } else {
+    showMessage('清除選擇功能不可用', 'warning');
+  }
+};
+
+// 離開遊戲
+window.leaveGame = function() {
+  if (confirm('確定要離開遊戲嗎？進行中的遊戲將會失去進度。')) {
+    leaveRoom();
+  }
+};
+
+// 關閉萬用字母模態框
+window.closeBlankTileModal = function() {
+  if (typeof tileUIManager !== 'undefined' && tileUIManager.closeBlankTileModal) {
+    tileUIManager.closeBlankTileModal();
+  }
+};
+
+// 測試字母磚系統
+window.testTileSystem = function() {
+  if (typeof testTileSystemConnection === 'function') {
+    const result = testTileSystemConnection();
+    if (result) {
+      showMessage('字母磚系統測試通過', 'success');
+    } else {
+      showMessage('字母磚系統測試失敗', 'error');
+    }
+    return result;
+  }
+  showMessage('測試功能不可用', 'warning');
+  return false;
+};
+
+// ========== 會話管理 ==========
+
+// 會話管理器類
 class SessionManager {
   constructor() {
-    this.sessionId = this.generateSessionId();
-    this.startTime = Date.now();
+    this.sessionKey = 'lastSessionTime';
+    this.playerNameKey = 'playerName';
   }
 
-  generateSessionId() {
-    return 'session_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
-  }
-
-  // 檢查是否是新會話（超過30分鐘算新會話）
+  // 檢查是否為新會話
   isNewSession() {
-    const lastSession = localStorage.getItem('lastSessionTime');
+    const lastSession = localStorage.getItem(this.sessionKey);
     if (!lastSession) return true;
     
     const timeDiff = Date.now() - parseInt(lastSession);
@@ -494,26 +718,35 @@ class SessionManager {
 
   // 更新會話時間
   updateSession() {
-    localStorage.setItem('lastSessionTime', Date.now().toString());
+    localStorage.setItem(this.sessionKey, Date.now().toString());
   }
 
   // 清除會話
   clearSession() {
-    localStorage.removeItem('lastSessionTime');
-    localStorage.removeItem('playerName');
+    localStorage.removeItem(this.sessionKey);
+    localStorage.removeItem(this.playerNameKey);
   }
 }
 
 // 初始化會話管理器
 const sessionManager = new SessionManager();
 
-// 修改初始化邏輯
+// ========== 初始化邏輯 ==========
+
+// DOM 載入完成後的初始化
 document.addEventListener('DOMContentLoaded', () => {
-  console.log('🚀 初始化 WebSocket 連接...');
+  console.log('🚀 初始化 WebSocket 連接和字母磚系統...');
   
   setTimeout(() => {
+    // 初始化 WebSocket
     initializeWebSocket();
     
+    // 初始化字母磚系統擴展（如果可用）
+    if (typeof initializeTileSystemExtension === 'function') {
+      setTimeout(initializeTileSystemExtension, 1000);
+    }
+    
+    // 處理保存的玩家名稱
     const savedName = localStorage.getItem('playerName');
     const isNewSession = sessionManager.isNewSession();
     
@@ -542,22 +775,55 @@ document.addEventListener('DOMContentLoaded', () => {
   }, 100);
 });
 
-// 修改設置名稱的函數，加入會話更新
-window.setPlayerName = function(name) {
-  if (!name || name.trim() === '') {
-    showMessage('請輸入有效的名稱', 'error');
-    return;
-  }
+// ========== 調試和開發工具 ==========
+
+// 開發模式標記
+const isDevelopment = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+
+if (isDevelopment) {
+  console.log('🔧 開發模式已啟用');
   
-  if (socketClient) {
-    const success = socketClient.setPlayerName(name.trim());
-    if (success) {
-      // 更新會話
-      sessionManager.updateSession();
-    } else {
-      showMessage('設置名稱失敗，請檢查網絡連接', 'error');
+  // 添加調試函數到全局作用域
+  window.debugTileSystem = function() {
+    console.log('=== 字母磚系統調試資訊 ===');
+    console.log('SocketClient:', typeof socketClient !== 'undefined' ? socketClient : '未初始化');
+    console.log('TileUIManager:', typeof tileUIManager !== 'undefined' ? tileUIManager : '未初始化');
+    console.log('當前遊戲狀態:', typeof gameState !== 'undefined' ? gameState : '未定義');
+    
+    if (typeof socketClient !== 'undefined' && socketClient) {
+      console.log('連接狀態:', socketClient.isConnected ? socketClient.isConnected() : '未知');
+      console.log('當前房間:', socketClient.currentRoom || '無');
+      console.log('當前玩家:', socketClient.currentPlayer || '無');
     }
-  } else {
-    showMessage('WebSocket 未初始化', 'error');
-  }
-};
+  };
+
+  // 添加快速測試函數
+  window.quickTest = function() {
+    console.log('🧪 執行快速測試...');
+    
+    // 測試 WebSocket 連接
+    if (typeof socketClient !== 'undefined' && socketClient) {
+      console.log('✅ SocketClient 已初始化');
+      
+      // 測試字母磚方法
+      if (socketClient.requestMyHand) {
+        console.log('✅ 字母磚方法可用');
+      } else {
+        console.log('❌ 字母磚方法不可用');
+      }
+    } else {
+      console.log('❌ SocketClient 未初始化');
+    }
+    
+    // 測試 UI 管理器
+    if (typeof tileUIManager !== 'undefined') {
+      console.log('✅ TileUIManager 已初始化');
+    } else {
+      console.log('❌ TileUIManager 未初始化');
+    }
+    
+    showMessage('快速測試完成，請檢查控制台', 'info');
+  };
+}
+
+console.log('✅ 字母磚整合的 WebSocket 系統載入完成');
