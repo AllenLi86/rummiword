@@ -825,4 +825,30 @@ if (isDevelopment) {
   };
 }
 
+// 確認出牌
+window.confirmPlayedWord = function() {
+  if (typeof tileUIManager !== 'undefined' && tileUIManager.playedTiles.length > 0) {
+    const playedLetters = tileUIManager.playedTiles.map(t => t.letter).join('');
+    showMessage(`確認出牌: ${playedLetters} (${tileUIManager.playedTiles.length}張磚塊)`, 'success');
+    
+    // 這裡之後可以添加單詞驗證邏輯
+    console.log('🎯 確認出牌:', tileUIManager.playedTiles);
+  } else {
+    showMessage('沒有磚塊可以出牌', 'warning');
+  }
+};
+
+// 收回所有磚塊
+window.recallTiles = function() {
+  if (typeof tileUIManager !== 'undefined') {
+    // 收回所有已出牌磚塊
+    const playedTileIds = [...tileUIManager.playedTiles.map(t => t.id)];
+    playedTileIds.forEach(tileId => {
+      tileUIManager.recallSingleTile(tileId);
+    });
+    
+    showMessage('所有磚塊已收回手牌', 'info');
+  }
+};
+
 console.log('✅ 字母磚整合的 WebSocket 系統載入完成');

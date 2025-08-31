@@ -11,18 +11,33 @@ let gameState = {
 
 // 字母磚 UI 管理器
 class TileUIManager {
+  // constructor() {
+  //   this.selectedTiles = new Set();
+  //   this.draggedTile = null;
+  //   this.blankTileModal = null;
+  //   this.currentBlankTile = null;
+  //   this.playedTiles = []; // 新增：記錄已出牌的磚塊
+  //   this.dragPreview = null; // 新增：拖拽預覽元素
+  //   console.log('✅ TileUIManager 初始化完成');
+  // }
   constructor() {
     this.selectedTiles = new Set();
     this.draggedTile = null;
     this.blankTileModal = null;
     this.currentBlankTile = null;
+    this.playedTiles = []; // 新增這行
     console.log('✅ TileUIManager 初始化完成');
+  }
+
+  // 替換 setupDragEvents 相關方法：
+  setupDragEvents() {
+    // 將在 createTileElement 中為每個磚塊設置拖拽
   }
 
   // 創建遊戲界面
   createGameInterface(gameData) {
     console.log('🎨 創建字母磚遊戲界面', gameData);
-    
+
     const gameArea = document.getElementById('game-area');
     if (!gameArea) {
       console.error('❌ 找不到 game-area 元素');
@@ -72,12 +87,20 @@ class TileUIManager {
 
         <!-- 遊戲棋盤 -->
         <div class="game-board-container">
-          <h3>📋 遊戲棋盤</h3>
-          <div id="game-board" class="game-board">
-            <div class="board-placeholder">
-              <p>🔧 棋盤功能開發中...</p>
-              <p>拖拽字母磚到這裡組成單詞</p>
+          <h3>📋 出牌區域</h3>
+          <div id="play-area" class="play-area">
+            <div class="drop-zone" id="word-area">
+              <div class="drop-zone-placeholder">拖拽字母磚到這裡組成單詞</div>
+              <div id="played-tiles" class="played-tiles"></div>
             </div>
+          </div>
+          <div class="play-area-actions">
+            <button id="confirm-word-btn" class="control-btn" onclick="confirmPlayedWord()" disabled>
+              ✅ 確認出牌
+            </button>
+            <button id="recall-tiles-btn" class="control-btn" onclick="recallTiles()">
+              ↶ 收回磚塊
+            </button>
           </div>
         </div>
 
@@ -134,8 +157,141 @@ class TileUIManager {
 
     // 初始化樣式
     this.addGameStyles();
-    
+
+    // 設置出牌區域的拖放事件
+    setTimeout(() => {
+      this.setupPlayAreaEvents();
+    }, 100);
+
     console.log('✅ 字母磚遊戲界面創建完成');
+  }
+
+  // 新增方法：設置出牌區域事件 - 修正 event deprecation
+  setupPlayAreaEvents() {
+    const playArea = document.getElementById('play-area');
+    if (!playArea) return;
+
+    playArea.addEventListener('dragover', (dragOverEvent) => {
+      dragOverEvent.preventDefault();
+      dragOverEvent.dataTransfer.dropEffect = 'move';
+    });
+
+    playArea.addEventListener('drop', (dropEvent) => {
+      dropEvent.preventDefault();
+      this.handleTileDrop(dropEvent);
+    });
+
+    playArea.addEventListener('dragenter', (dragEnterEvent) => {
+      dragEnterEvent.preventDefault();
+      playArea.classList.add('drag-over');
+    });
+
+    playArea.addEventListener('dragleave', (dragLeaveEvent) => {
+      // 只有當離開整個play-area時才移除高亮
+      if (!playArea.contains(dragLeaveEvent.relatedTarget)) {
+        playArea.classList.remove('drag-over');
+      }
+    });
+  }
+
+  // 新增方法：處理磚塊放置
+  handleTileDrop(dropEvent) {
+    const playedTilesEl = document.getElementById('played-tiles');
+    if (!playedTilesEl || !this.draggedTile) return;
+
+    console.log('📍 磚塊放置到出牌區:', this.draggedTile.letter);
+
+    // 移除原始磚塊的選中狀態
+    this.selectedTiles.delete(this.draggedTile.id);
+    
+    // 創建已出牌磚塊的副本
+    const playedTileEl = this.createPlayedTileElement(this.draggedTile);
+    playedTilesEl.appendChild(playedTileEl);
+    
+    // 隱藏手牌中的原始磚塊
+    const originalTile = document.querySelector(`[data-tile-id="${this.draggedTile.id}"]`);
+    if (originalTile && originalTile !== playedTileEl) {
+      originalTile.style.display = 'none';
+    }
+    
+    // 記錄已出牌磚塊
+    if (!this.playedTiles) {
+      this.playedTiles = [];
+    }
+    this.playedTiles.push(this.draggedTile);
+    
+    // 更新按鈕狀態
+    this.updatePlayAreaButtons();
+    
+    // 移除放置區域高亮
+    const playArea = document.getElementById('play-area');
+    if (playArea) {
+      playArea.classList.remove('drag-over');
+    }
+    
+    if (typeof showMessage === 'function') {
+      showMessage(`出牌: ${this.draggedTile.letter}`, 'success');
+    }
+  }
+
+  // 新增方法：創建已出牌磚塊元素
+  createPlayedTileElement(tile) {
+    const tileEl = this.createTileElement(tile);
+    tileEl.classList.add('played');
+    tileEl.classList.remove('can-drag');
+    tileEl.draggable = false;
+    
+    // 添加移除按鈕
+    const removeBtn = document.createElement('div');
+    removeBtn.className = 'tile-remove-btn';
+    removeBtn.innerHTML = '×';
+    removeBtn.title = '收回磚塊';
+    removeBtn.onclick = (clickEvent) => {
+      clickEvent.stopPropagation();
+      this.recallSingleTile(tile.id);
+    };
+    
+    tileEl.appendChild(removeBtn);
+    return tileEl;
+  }
+
+  // 新增方法：更新出牌區域按鈕狀態
+  updatePlayAreaButtons() {
+    const confirmBtn = document.getElementById('confirm-word-btn');
+    const recallBtn = document.getElementById('recall-tiles-btn');
+    
+    if (confirmBtn) {
+      confirmBtn.disabled = !this.playedTiles || this.playedTiles.length === 0;
+    }
+    
+    if (recallBtn) {
+      recallBtn.style.display = this.playedTiles && this.playedTiles.length > 0 ? 'inline-block' : 'none';
+    }
+  }
+
+  // 新增方法：收回單個磚塊
+  recallSingleTile(tileId) {
+    const playedTileEl = document.querySelector(`#played-tiles [data-tile-id="${tileId}"]`);
+    const originalTileEl = document.querySelector(`#my-hand [data-tile-id="${tileId}"]`);
+    
+    if (playedTileEl) {
+      playedTileEl.remove();
+    }
+    
+    if (originalTileEl) {
+      originalTileEl.style.display = '';
+    }
+    
+    // 從已出牌列表中移除
+    if (this.playedTiles) {
+      this.playedTiles = this.playedTiles.filter(tile => tile.id !== tileId);
+    }
+    
+    this.updatePlayAreaButtons();
+    
+    if (typeof showMessage === 'function') {
+      showMessage('磚塊已收回手牌', 'info');
+    }
   }
 
   // 添加遊戲樣式
@@ -150,6 +306,36 @@ class TileUIManager {
     const styles = document.createElement('style');
     styles.id = 'game-tiles-styles';
     styles.textContent = `
+      /* 移除按鈕樣式 */
+      .tile-remove-btn {
+        position: absolute;
+        top: -5px;
+        right: -5px;
+        width: 18px;
+        height: 18px;
+        background: #dc3545;
+        color: white;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 12px;
+        font-weight: bold;
+        cursor: pointer;
+        opacity: 0;
+        transition: opacity 0.2s;
+      }
+
+      .tile:hover .tile-remove-btn {
+        opacity: 1;
+      }
+
+      .tile-remove-btn:hover {
+        background: #c82333;
+        transform: scale(1.1);
+      }
+      /* end of 移除按鈕樣式 */
+
       .rummi-game-container {
         max-width: 1200px;
         margin: 0 auto;
@@ -419,6 +605,96 @@ class TileUIManager {
         margin: 5px 0;
       }
 
+      /* 出牌區域樣式 */
+      .play-area {
+        background: white;
+        border: 3px dashed #dee2e6;
+        border-radius: 12px;
+        min-height: 120px;
+        margin-bottom: 15px;
+        position: relative;
+        transition: all 0.3s ease;
+      }
+
+      .play-area.drag-over {
+        border-color: #007bff;
+        background: #f0f8ff;
+        box-shadow: 0 0 15px rgba(0, 123, 255, 0.3);
+      }
+
+      .drop-zone {
+        padding: 20px;
+        min-height: 80px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        flex-wrap: wrap;
+        gap: 5px;
+        position: relative;
+      }
+
+      .drop-zone-placeholder {
+        color: #999;
+        font-style: italic;
+        font-size: 16px;
+        text-align: center;
+        position: absolute;
+        width: 100%;
+        pointer-events: none;
+      }
+
+      .played-tiles {
+        display: flex;
+        gap: 8px;
+        flex-wrap: wrap;
+        align-items: center;
+        justify-content: center;
+        min-width: 100%;
+      }
+
+      .played-tiles:not(:empty) + .drop-zone-placeholder {
+        display: none;
+      }
+
+      .play-area-actions {
+        display: flex;
+        justify-content: center;
+        gap: 15px;
+        margin-bottom: 15px;
+      }
+
+      /* 拖拽狀態樣式 */
+      .tile.dragging {
+        opacity: 0.5;
+        transform: rotate(5deg);
+        z-index: 1000;
+        pointer-events: none;
+      }
+
+      .tile.played {
+        border-color: #28a745;
+        background: linear-gradient(145deg, #d4edda, #c3e6cb);
+        box-shadow: 0 2px 6px rgba(40, 167, 69, 0.3);
+      }
+
+      .tile.can-drag {
+        cursor: grab;
+      }
+
+      .tile.can-drag:active {
+        cursor: grabbing;
+      }
+
+      /* 拖拽預覽效果 */
+      .drag-preview {
+        position: fixed;
+        pointer-events: none;
+        z-index: 9999;
+        transform: rotate(3deg) scale(1.1);
+        opacity: 0.8;
+        box-shadow: 0 5px 15px rgba(0,0,0,0.3);
+      }
+
       /* 模態框樣式 */
       .modal {
         position: fixed;
@@ -552,7 +828,7 @@ class TileUIManager {
     }
 
     console.log('🎯 更新手牌數據', handData);
-    
+
     const handEl = document.getElementById('my-hand');
     const handCountEl = document.getElementById('hand-count');
     const handScoreEl = document.getElementById('hand-score');
@@ -572,7 +848,7 @@ class TileUIManager {
 
     // 渲染手牌磚塊
     handEl.innerHTML = '';
-    
+
     if (handData.tiles.length === 0) {
       handEl.innerHTML = '<div class="loading-hand">手牌為空</div>';
       return;
@@ -582,14 +858,14 @@ class TileUIManager {
       const tileEl = this.createTileElement(tile);
       handEl.appendChild(tileEl);
     });
-    
+
     console.log('✅ 手牌更新完成');
   }
 
-  // 創建字母磚元素
+  // 創建字母磚元素 - 修正 event deprecation 問題
   createTileElement(tile) {
     const tileEl = document.createElement('div');
-    tileEl.className = `tile ${tile.isBlank ? 'blank' : ''}`;
+    tileEl.className = `tile ${tile.isBlank ? 'blank' : ''} can-drag`;
     tileEl.dataset.tileId = tile.id;
     tileEl.draggable = true;
 
@@ -606,17 +882,122 @@ class TileUIManager {
     tileEl.appendChild(letterEl);
     tileEl.appendChild(pointsEl);
 
-    // 添加事件監聽器
+    // 修正：使用箭頭函數避免 event 參數 deprecation 警告
     tileEl.addEventListener('click', (e) => this.handleTileClick(e, tile));
-    tileEl.addEventListener('dragstart', (e) => this.handleDragStart(e, tile));
-    tileEl.addEventListener('dragend', (e) => this.handleDragEnd(e, tile));
+    
+    // 拖拽事件處理 - 修正版本
+    tileEl.addEventListener('dragstart', (dragEvent) => {
+      console.log('🎯 開始拖拽磚塊:', tile.letter);
+      
+      this.draggedTile = { ...tile, element: tileEl };
+      
+      // 設置拖拽數據
+      dragEvent.dataTransfer.effectAllowed = 'move';
+      dragEvent.dataTransfer.setData('text/plain', tile.id);
+      dragEvent.dataTransfer.setData('application/json', JSON.stringify(tile));
+      
+      // 添加拖拽樣式
+      tileEl.classList.add('dragging');
+      
+      // 高亮所有可放置區域
+      this.highlightDropZones(true);
+    });
+
+    tileEl.addEventListener('dragend', (dragEvent) => {
+      console.log('🏁 拖拽結束:', tile.letter);
+      
+      // 移除拖拽樣式
+      tileEl.classList.remove('dragging');
+      
+      // 移除放置區域高亮
+      this.highlightDropZones(false);
+      
+      this.draggedTile = null;
+    });
 
     // 萬用字母雙擊事件
     if (tile.isBlank) {
-      tileEl.addEventListener('dblclick', (e) => this.handleBlankTileDoubleClick(e, tile));
+      tileEl.addEventListener('dblclick', (clickEvent) => this.handleBlankTileDoubleClick(clickEvent, tile));
     }
 
     return tileEl;
+  }
+
+  // 新增：增強的拖拽開始處理
+  handleDragStart(event, tile, tileElement) {
+    console.log('🎯 開始拖拽磚塊:', tile.letter);
+    
+    this.draggedTile = { ...tile, element: tileElement };
+    
+    // 設置拖拽數據
+    event.dataTransfer.effectAllowed = 'move';
+    event.dataTransfer.setData('text/plain', tile.id);
+    event.dataTransfer.setData('application/json', JSON.stringify(tile));
+    
+    // 添加拖拽樣式
+    tileElement.classList.add('dragging');
+    
+    // 創建自定義拖拽預覽
+    this.createDragPreview(tileElement, event);
+    
+    // 高亮所有可放置區域
+    this.highlightDropZones(true);
+  }
+
+  // 新增：創建拖拽預覽
+  createDragPreview(tileElement, event) {
+    const preview = tileElement.cloneNode(true);
+    preview.classList.add('drag-preview');
+    preview.classList.remove('dragging', 'selected');
+    document.body.appendChild(preview);
+    
+    this.dragPreview = preview;
+    
+    // 設置預覽位置跟隨鼠標
+    const updatePreviewPosition = (e) => {
+      if (this.dragPreview) {
+        this.dragPreview.style.left = (e.clientX + 10) + 'px';
+        this.dragPreview.style.top = (e.clientY + 10) + 'px';
+      }
+    };
+    
+    document.addEventListener('dragover', updatePreviewPosition);
+    
+    // 清理事件監聽器
+    setTimeout(() => {
+      document.removeEventListener('dragover', updatePreviewPosition);
+    }, 100);
+  }
+
+  // 新增：拖拽結束處理
+  handleDragEnd(event, tile, tileElement) {
+    console.log('🏁 拖拽結束:', tile.letter);
+    
+    // 移除拖拽樣式
+    tileElement.classList.remove('dragging');
+    
+    // 清理拖拽預覽
+    if (this.dragPreview) {
+      document.body.removeChild(this.dragPreview);
+      this.dragPreview = null;
+    }
+    
+    // 移除放置區域高亮
+    this.highlightDropZones(false);
+    
+    this.draggedTile = null;
+  }
+
+  // 新增：高亮放置區域
+  highlightDropZones(highlight) {
+    const playArea = document.getElementById('play-area');
+    if (playArea) {
+      if (highlight) {
+        playArea.classList.add('drag-over');
+      } else {
+        playArea.classList.remove('drag-over');
+      }
+    }
   }
 
   // 處理字母磚點擊
@@ -635,7 +1016,7 @@ class TileUIManager {
     }
 
     console.log('🎯 選中的磚塊:', Array.from(this.selectedTiles));
-    
+
     // 顯示消息
     if (typeof showMessage === 'function') {
       const action = tileEl.classList.contains('selected') ? '選中' : '取消選中';
@@ -648,7 +1029,7 @@ class TileUIManager {
     this.draggedTile = tile;
     event.dataTransfer.setData('text/plain', tile.id);
     event.dataTransfer.effectAllowed = 'move';
-    
+
     // 添加拖拽樣式
     setTimeout(() => {
       event.target.style.opacity = '0.5';
@@ -672,7 +1053,7 @@ class TileUIManager {
   showBlankTileModal(tile) {
     const modal = document.getElementById('blank-tile-modal');
     const letterSelection = document.getElementById('letter-selection');
-    
+
     if (!modal || !letterSelection) {
       console.error('❌ 找不到模態框元素');
       return;
@@ -681,7 +1062,7 @@ class TileUIManager {
     // 生成字母選擇按鈕
     letterSelection.innerHTML = '';
     const letters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
-    
+
     for (let letter of letters) {
       const btn = document.createElement('button');
       btn.className = 'letter-btn';
@@ -706,10 +1087,10 @@ class TileUIManager {
   // 選擇萬用字母
   selectBlankTileLetter(tile, letter) {
     console.log(`🌟 設置萬用字母: ${tile.id} -> ${letter}`);
-    
+
     // 本地更新
     tile.selectedLetter = letter;
-    
+
     // 更新UI
     const tileEl = document.querySelector(`[data-tile-id="${tile.id}"] .tile-letter`);
     if (tileEl) {
@@ -717,7 +1098,7 @@ class TileUIManager {
     }
 
     this.closeBlankTileModal();
-    
+
     if (typeof showMessage === 'function') {
       showMessage(`萬用字母設置為 ${letter}`, 'success');
     }
@@ -744,7 +1125,7 @@ class TileUIManager {
 
       const playerEl = document.createElement('div');
       playerEl.className = `player-info ${player.id === currentPlayerId ? 'current' : ''}`;
-      
+
       playerEl.innerHTML = `
         <div class="player-name">${player.name}</div>
         <div class="player-stats">
@@ -760,7 +1141,7 @@ class TileUIManager {
   // 更新遊戲狀態
   updateGameState(gameStateData) {
     console.log('🎮 更新遊戲狀態', gameStateData);
-    
+
     // 更新剩餘磚塊數
     const poolCountEl = document.getElementById('pool-count');
     if (poolCountEl && gameStateData.poolRemaining !== undefined) {
@@ -776,18 +1157,30 @@ class TileUIManager {
   // 清除選擇
   clearSelection() {
     this.selectedTiles.clear();
-    
+
     // 移除所有選中樣式
     document.querySelectorAll('.tile.selected').forEach(tileEl => {
       tileEl.classList.remove('selected');
     });
-    
+
     console.log('🗑️ 已清除所有選擇');
   }
 
   // 獲取選中的磚塊
   getSelectedTiles() {
     return Array.from(this.selectedTiles);
+  }
+
+  // 新增：高亮放置區域
+  highlightDropZones(highlight) {
+    const playArea = document.getElementById('play-area');
+    if (playArea) {
+      if (highlight) {
+        playArea.classList.add('drag-over');
+      } else {
+        playArea.classList.remove('drag-over');
+      }
+    }
   }
 }
 
@@ -811,7 +1204,7 @@ if (typeof window !== 'undefined') {
   window.tileUIManager = tileUIManager;
   window.TileUIManager = TileUIManager;
   window.initializeTileUIManager = initializeTileUIManager;
-  
+
   console.log('✅ TileUIManager 已導出到全局作用域');
 }
 
