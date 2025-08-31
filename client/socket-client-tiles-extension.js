@@ -1,5 +1,4 @@
-// ========== socket-client-tiles-extension-fixed.js ==========
-// WebSocket 客戶端的字母磚功能擴展 - 修正版
+// ========== socket-client-tiles-extension.js ==========
 
 // 為現有的 SocketClient 類添加字母磚相關方法
 function extendSocketClientWithTiles() {

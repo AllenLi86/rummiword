@@ -1,5 +1,4 @@
-// ========== game-ui-tiles-fixed.js ==========
-// 修正版字母磚遊戲界面管理
+// ========== game-ui-tiles.js ==========
 
 // 全局遊戲狀態
 let gameState = {

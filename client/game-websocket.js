@@ -1,5 +1,4 @@
-// ========== game-websocket-updated.js ==========
-// 整合字母磚系統的 WebSocket 遊戲邏輯 - 更新版本
+// ========== game-websocket.js ==========
 
 // 全局 socket 客戶端實例
 let socketClient = null;
