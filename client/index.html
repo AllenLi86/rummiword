@@ -8,6 +8,9 @@
   <!-- Socket.IO 客戶端 -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.7.4/socket.io.js"></script>
 
+  <!-- Phaser 框架 -->
+  <script src="https://cdn.jsdelivr.net/npm/phaser@3.70.0/dist/phaser.min.js"></script>
+
   <style>
     * {
       margin: 0;
@@ -460,6 +463,70 @@
       background: rgba(0, 123, 255, 0.1);
     }
 
+    /* Phaser 遊戲相關樣式 */
+    .phaser-game-wrapper {
+      width: 100%;
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 20px;
+    }
+
+    #phaser-game-container {
+      border: 2px solid #dee2e6;
+      border-radius: 10px;
+      overflow: hidden;
+      background: #f8f9fa;
+    }
+
+    #phaser-game-container canvas {
+      display: block;
+      margin: 0 auto;
+    }
+
+    .game-controls-panel {
+      margin-top: 20px;
+      padding: 15px;
+      background: #f8f9fa;
+      border-radius: 8px;
+      text-align: center;
+    }
+
+    .game-controls-panel button {
+      margin: 0 10px;
+      padding: 10px 20px;
+      border: none;
+      border-radius: 5px;
+      cursor: pointer;
+      font-weight: bold;
+      transition: all 0.2s;
+    }
+
+    .game-controls-panel button:hover {
+      transform: translateY(-1px);
+    }
+
+    /* 響應式設計 */
+    @media (max-width: 768px) {
+      .phaser-game-wrapper {
+        padding: 10px;
+      }
+
+      #phaser-game-container {
+        width: 100%;
+        height: auto;
+      }
+
+      .game-controls-panel {
+        padding: 10px;
+      }
+
+      .game-controls-panel button {
+        display: block;
+        width: 100%;
+        margin: 5px 0;
+      }
+    }
+
     /* 響應式設計 */
     @media (max-width: 768px) {
       .lobby-section {
@@ -586,16 +653,17 @@
   <!-- 載入 JavaScript 檔案 - 正確的順序很重要！ -->
   <script src="socket-client.js"></script>
   <script src="tile-system.js"></script>
-  <script src="game-ui-tiles.js"></script>
+  <script src="phaser-tile-game.js"></script> <!-- 新增這一行 -->
+  <!-- <script src="game-ui-tiles.js"></script> -->
   <script src="socket-client-tiles-extension.js"></script>
   <script src="game-websocket.js"></script>
-  <script src="test-tile-interface.js"></script>
-  <script src="debug-checker.js"></script>
+  <!-- <script src="test-tile-interface.js"></script> -->
+  <!-- <script src="debug-checker.js"></script> -->
 
   <script>
     // 確保初始化函數在所有檔案載入後執行
     let initializationComplete = false;
-    
+
     // 檢查所有必要的對象是否已載入
     function checkInitialization() {
       const required = [
@@ -604,9 +672,9 @@
         'tileUIManager',
         'initializeTileSystemExtension'
       ];
-      
+
       const missing = required.filter(name => typeof window[name] === 'undefined');
-      
+
       if (missing.length === 0) {
         console.log('✅ 所有必要組件已載入');
         return true;
@@ -619,7 +687,7 @@
     // 強制初始化字母磚系統
     function forceInitializeTileSystem() {
       console.log('🔧 強制初始化字母磚系統...');
-      
+
       // 檢查並初始化
       if (checkInitialization()) {
         if (typeof initializeTileSystemExtension === 'function') {
@@ -631,51 +699,6 @@
         console.log('❌ 無法初始化，缺少必要組件');
       }
     }
-
-    // 覆蓋原來的 startGameInterface 函數
-    window.originalStartGameInterface = window.startGameInterface;
-    
-    window.startGameInterface = function(gameData) {
-      console.log('🎮 啟動字母磚遊戲界面 (覆蓋版本)', gameData);
-      
-      // 切換到遊戲區段
-      showSection('game-section');
-      
-      // 確保字母磚系統已初始化
-      if (!initializationComplete) {
-        console.log('🔧 字母磚系統未初始化，現在初始化...');
-        forceInitializeTileSystem();
-      }
-      
-      // 等待一下然後創建界面
-      setTimeout(() => {
-        if (typeof tileUIManager !== 'undefined' && tileUIManager.createGameInterface) {
-          console.log('✅ 使用字母磚 UI 管理器');
-          tileUIManager.createGameInterface(gameData);
-          
-          // 請求手牌數據
-          setTimeout(() => {
-            if (socketClient && socketClient.requestMyHand) {
-              socketClient.requestMyHand();
-            } else {
-              console.log('⚠️ requestMyHand 方法不可用，使用測試數據');
-              // 使用測試數據
-              if (typeof generateMockTileData === 'function') {
-                const mockData = {
-                  tiles: generateMockTileData(),
-                  statistics: { totalTiles: 7, totalPoints: 14 }
-                };
-                tileUIManager.updateMyHand(mockData);
-              }
-            }
-          }, 1000);
-          
-        } else {
-          console.log('❌ TileUIManager 不可用，使用基本界面');
-          showBasicGameInterface(gameData);
-        }
-      }, 500);
-    };
 
     // 基本遊戲界面（調試用）
     function showBasicGameInterface(gameData) {
@@ -713,7 +736,7 @@
       sections.forEach(section => {
         section.classList.remove('active');
       });
-      
+
       const targetSection = document.getElementById(sectionId);
       if (targetSection) {
         targetSection.classList.add('active');
@@ -721,29 +744,29 @@
     }
 
     // 調試函數
-    window.debugTileSystem = function() {
+    window.debugTileSystem = function () {
       console.log('=== 字母磚系統調試資訊 ===');
       console.log('SocketClient 載入:', typeof SocketClient !== 'undefined');
       console.log('TileSystem 載入:', typeof window.TileSystem !== 'undefined');
       console.log('tileUIManager 載入:', typeof tileUIManager !== 'undefined');
       console.log('socketClient 實例:', typeof socketClient !== 'undefined');
       console.log('initializeTileSystemExtension:', typeof initializeTileSystemExtension !== 'undefined');
-      
+
       if (typeof socketClient !== 'undefined' && socketClient) {
         console.log('Socket 連接狀態:', socketClient.isConnected ? socketClient.isConnected() : '未知');
         console.log('字母磚方法可用:', !!socketClient.requestMyHand);
       }
-      
+
       console.log('初始化狀態:', initializationComplete);
     };
 
     // 測試手動創建字母磚界面
-    window.createTileUIManually = function() {
+    window.createTileUIManually = function () {
       console.log('🔧 手動創建字母磚界面...');
-      
+
       const gameAreaEl = document.getElementById('game-area');
       if (!gameAreaEl) return;
-      
+
       gameAreaEl.innerHTML = `
         <div class="rummi-game-container">
           <div class="game-header">
@@ -787,17 +810,17 @@
           </div>
         </div>
       `;
-      
+
       console.log('✅ 手動界面創建完成');
     };
 
     // 等待所有組件載入
     let loadCheckCount = 0;
     const maxLoadChecks = 50; // 5秒超時
-    
+
     function waitForComponents() {
       loadCheckCount++;
-      
+
       if (checkInitialization()) {
         console.log('✅ 所有組件已載入，進行初始化');
         forceInitializeTileSystem();
@@ -808,7 +831,7 @@
         forceInitializeTileSystem();
       }
     }
-    
+
     // 啟動檢查
     setTimeout(waitForComponents, 1000);
   </script>

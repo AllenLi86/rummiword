@@ -395,27 +395,37 @@ function showSection(sectionId) {
 
 // ========== 遊戲界面函數 ==========
 
-// 開始遊戲界面 - 整合字母磚系統
+// 開始遊戲界面 - 整合 Phaser.js
 function startGameInterface(gameData) {
-  console.log('🎮 啟動字母磚遊戲界面', gameData);
+  console.log('🎮 啟動 Phaser 字母磚遊戲界面', gameData);
   
   showSection('game-section');
   
-  // 如果有字母磚 UI 管理器，使用它
-  if (typeof tileUIManager !== 'undefined' && tileUIManager.createGameInterface) {
-    tileUIManager.createGameInterface(gameData);
-    
-    // 請求我的手牌數據
-    setTimeout(() => {
-      if (socketClient && socketClient.requestMyHand) {
-        socketClient.requestMyHand();
-      }
-    }, 1000);
-    
-  } else {
-    // 後備方案：基本遊戲界面
-    startBasicGameInterface(gameData);
+  // 創建 Phaser 遊戲容器
+  const gameArea = document.getElementById('game-area');
+  if (gameArea) {
+    gameArea.innerHTML = `
+      <div class="phaser-game-wrapper">
+        <div id="phaser-game-container" style="width: 100%; max-width: 1200px; margin: 0 auto; border-radius: 10px; overflow: hidden; box-shadow: 0 4px 8px rgba(0,0,0,0.1);"></div>
+        <div class="game-controls-panel" style="margin-top: 20px; text-align: center;">
+          <button class="leave-btn" onclick="leaveRoom()" style="background: #dc3545; color: white; padding: 10px 20px; border: none; border-radius: 5px; cursor: pointer;">
+            離開遊戲
+          </button>
+        </div>
+      </div>
+    `;
   }
+  
+  // 初始化 Phaser 遊戲
+  setTimeout(() => {
+    if (typeof initializePhaserTileGame === 'function') {
+      initializePhaserTileGame(gameData, socketClient);
+      showMessage('Phaser 字母磚遊戲已啟動！', 'success');
+    } else {
+      console.error('❌ Phaser 遊戲系統未載入');
+      showMessage('遊戲系統載入失敗，請重新整理頁面', 'error');
+    }
+  }, 500);
 }
 
 // 基本遊戲界面（後備方案）
