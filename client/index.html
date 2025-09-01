@@ -553,7 +553,7 @@
 
 <body>
   <div class="container">
-    <h1>🎮 Rummiword - v0.1.0 版 (字母磚系統)</h1>
+    <h1>🎮 Rummiword - v0.1.1 版 (phaser字母磚系統)</h1>
 
     <!-- 連接狀態 -->
     <div id="connection-status" class="connection-status info">
@@ -666,179 +666,19 @@
   <script src="js/game-websocket.js"></script>
 
   <script>
-    // 確保初始化函數在所有檔案載入後執行
-    let initializationComplete = false;
+    // 簡化的初始化檢查
+    document.addEventListener('DOMContentLoaded', () => {
+      console.log('🚀 頁面載入完成，初始化 WebSocket');
 
-    // 檢查所有必要的對象是否已載入
-    function checkInitialization() {
-      const required = [
-        'SocketClient',
-        'TileSystem',
-        'tileUIManager',
-        'initializeTileSystemExtension'
-      ];
-
-      const missing = required.filter(name => typeof window[name] === 'undefined');
-
-      if (missing.length === 0) {
-        console.log('✅ 所有必要組件已載入');
-        return true;
-      } else {
-        console.log('⏳ 等待載入:', missing.join(', '));
-        return false;
-      }
-    }
-
-    // 強制初始化字母磚系統
-    function forceInitializeTileSystem() {
-      console.log('🔧 強制初始化字母磚系統...');
-
-      // 檢查並初始化
-      if (checkInitialization()) {
-        if (typeof initializeTileSystemExtension === 'function') {
-          initializeTileSystemExtension();
-          initializationComplete = true;
-          console.log('✅ 字母磚系統初始化完成');
+      // 等待所有腳本載入
+      setTimeout(() => {
+        if (typeof initializeWebSocket === 'function') {
+          initializeWebSocket();
+        } else {
+          console.error('❌ initializeWebSocket 未定義');
         }
-      } else {
-        console.log('❌ 無法初始化，缺少必要組件');
-      }
-    }
-
-    // 基本遊戲界面（調試用）
-    function showBasicGameInterface(gameData) {
-      const gameAreaEl = document.getElementById('game-area');
-      if (gameAreaEl) {
-        gameAreaEl.innerHTML = `
-          <div class="game-placeholder">
-            <h2>🎮 遊戲開始了！</h2>
-            <div class="game-info">
-              <p><strong>參與玩家:</strong> ${gameData.players.map(p => p.name).join(', ')}</p>
-              <p><strong>當前回合:</strong> ${gameData.round}</p>
-              <p><strong>遊戲狀態:</strong> ${gameData.status}</p>
-            </div>
-            <div class="game-placeholder-content">
-              <p>🔧 字母磚系統載入中...</p>
-              <p>📝 如果持續看到此訊息，表示有初始化問題</p>
-              <div style="margin: 20px 0;">
-                <button class="control-btn" onclick="forceInitializeTileSystem()">🔧 重新初始化</button>
-                <button class="control-btn" onclick="requestMyHand()">🎯 請求手牌</button>
-                <button class="control-btn" onclick="testTileSystem()">🧪 測試系統</button>
-                <button class="control-btn" onclick="debugTileSystem()">🐛 調試資訊</button>
-              </div>
-            </div>
-            <div class="game-actions">
-              <button class="leave-btn" onclick="leaveRoom()">離開遊戲</button>
-            </div>
-          </div>
-        `;
-      }
-    }
-
-    // 界面切換函數
-    function showSection(sectionId) {
-      const sections = document.querySelectorAll('.section');
-      sections.forEach(section => {
-        section.classList.remove('active');
-      });
-
-      const targetSection = document.getElementById(sectionId);
-      if (targetSection) {
-        targetSection.classList.add('active');
-      }
-    }
-
-    // 調試函數
-    window.debugTileSystem = function () {
-      console.log('=== 字母磚系統調試資訊 ===');
-      console.log('SocketClient 載入:', typeof SocketClient !== 'undefined');
-      console.log('TileSystem 載入:', typeof window.TileSystem !== 'undefined');
-      console.log('tileUIManager 載入:', typeof tileUIManager !== 'undefined');
-      console.log('socketClient 實例:', typeof socketClient !== 'undefined');
-      console.log('initializeTileSystemExtension:', typeof initializeTileSystemExtension !== 'undefined');
-
-      if (typeof socketClient !== 'undefined' && socketClient) {
-        console.log('Socket 連接狀態:', socketClient.isConnected ? socketClient.isConnected() : '未知');
-        console.log('字母磚方法可用:', !!socketClient.requestMyHand);
-      }
-
-      console.log('初始化狀態:', initializationComplete);
-    };
-
-    // 測試手動創建字母磚界面
-    window.createTileUIManually = function () {
-      console.log('🔧 手動創建字母磚界面...');
-
-      const gameAreaEl = document.getElementById('game-area');
-      if (!gameAreaEl) return;
-
-      gameAreaEl.innerHTML = `
-        <div class="rummi-game-container">
-          <div class="game-header">
-            <div class="game-info">
-              <h2>🎮 Rummiword 遊戲</h2>
-              <div class="game-stats">
-                <span class="current-player">當前玩家: <strong>測試玩家</strong></span>
-                <span class="round-info">回合: 1</span>
-                <span class="pool-count">剩餘磚塊: <span id="pool-count">98</span></span>
-              </div>
-            </div>
-            <div class="game-actions">
-              <button class="control-btn" onclick="requestMyHand()">🎯 請求手牌</button>
-              <button class="control-btn" onclick="debugTileSystem()">🐛 調試</button>
-              <button class="leave-btn" onclick="leaveRoom()">離開遊戲</button>
-            </div>
-          </div>
-          
-          <div class="my-hand-container">
-            <div class="hand-header">
-              <h3>🎯 我的手牌</h3>
-              <div class="hand-stats">
-                <span id="hand-count">7 張</span>
-                <span id="hand-score">14 分</span>
-              </div>
-            </div>
-            <div id="my-hand" class="hand-tiles">
-              <div class="tile" data-tile-id="test1">
-                <div class="tile-letter">A</div>
-                <div class="tile-points">1</div>
-              </div>
-              <div class="tile" data-tile-id="test2">
-                <div class="tile-letter">B</div>
-                <div class="tile-points">3</div>
-              </div>
-              <div class="tile blank" data-tile-id="test3">
-                <div class="tile-letter">★</div>
-                <div class="tile-points"></div>
-              </div>
-            </div>
-          </div>
-        </div>
-      `;
-
-      console.log('✅ 手動界面創建完成');
-    };
-
-    // 等待所有組件載入
-    let loadCheckCount = 0;
-    const maxLoadChecks = 50; // 5秒超時
-
-    function waitForComponents() {
-      loadCheckCount++;
-
-      if (checkInitialization()) {
-        console.log('✅ 所有組件已載入，進行初始化');
-        forceInitializeTileSystem();
-      } else if (loadCheckCount < maxLoadChecks) {
-        setTimeout(waitForComponents, 100);
-      } else {
-        console.log('⚠️ 組件載入超時，但仍然嘗試初始化');
-        forceInitializeTileSystem();
-      }
-    }
-
-    // 啟動檢查
-    setTimeout(waitForComponents, 1000);
+      }, 1000);
+    });
   </script>
 </body>
 

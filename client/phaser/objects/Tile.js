@@ -1,7 +1,7 @@
 // ========== client/phaser/objects/Tile.js ==========
 // 磚塊物件 - 單個字母磚的邏輯和視覺表現
 
-class Tile extends Phaser.GameObjects.Container {
+class PhaserTile extends Phaser.GameObjects.Container {
   constructor(scene, x, y, tileData) {
     super(scene, x, y);
     
@@ -369,7 +369,7 @@ class Tile extends Phaser.GameObjects.Container {
 
 // 導出到全局
 if (typeof window !== 'undefined') {
-  window.Tile = Tile;
+  window.PhaserTile = PhaserTile;
 }
 
-console.log('✅ Tile 載入完成');
+console.log('✅ PhaserTile 載入完成');

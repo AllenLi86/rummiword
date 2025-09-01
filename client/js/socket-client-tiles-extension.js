@@ -549,12 +549,12 @@ function leaveGame() {
 
 // 導出到全域
 if (typeof window !== 'undefined') {
-  // 確保 tileUIManager 全局可用
-  if (!window.tileUIManager) {
-    window.tileUIManager = new TileUIManager();
-  }
+  // // 確保 tileUIManager 全局可用
+  // if (!window.tileUIManager) {
+  //   window.tileUIManager = new TileUIManager();
+  // }
   
-  window.TileUIManager = TileUIManager;
+  // window.TileUIManager = TileUIManager;
   window.initializeTileSystemExtension = initializeTileSystemExtension;
   window.loadMockData = loadMockData;
   window.simulateDrawTile = simulateDrawTile;

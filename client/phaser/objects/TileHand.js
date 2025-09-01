@@ -47,7 +47,7 @@ class TileHand {
     const y = this.handArea.startY;
 
     // 創建磚塊對象
-    const tile = new Tile(this.scene, x, y, tileData);
+    const tile = new PhaserTile(this.scene, x, y, tileData);
     
     // 設置事件監聽
     tile.on('selected', this.onTileSelected, this);
