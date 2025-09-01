@@ -15,7 +15,7 @@ class UIScene {
   // 初始化場景
   init(gameData, socketClient, gameManager) {
     console.log('🎨 UIScene 初始化');
-    
+
     this.gameData = gameData;
     this.socketClient = socketClient;
     this.gameManager = gameManager;
@@ -31,13 +31,13 @@ class UIScene {
 
     // 創建遊戲標題
     this.createGameTitle();
-    
+
     // 創建統計資訊
     this.createStats();
-    
+
     // 創建控制按鈕
     this.createControlButtons();
-    
+
     // 創建消息系統
     this.setupMessageSystem();
   }
@@ -45,7 +45,7 @@ class UIScene {
   // 創建遊戲標題
   createGameTitle() {
     const { width } = this.sys.game.config;
-    
+
     this.add.text(width / 2, 40, '🎮 Rummiword', {
       fontSize: '36px',
       fontFamily: 'Arial',
@@ -64,34 +64,40 @@ class UIScene {
   // 創建統計資訊
   createStats() {
     const { width } = this.sys.game.config;
+    const isMobile = width < 768;
 
-    // 手牌統計
+    // 手牌統計 - 響應式位置
+    const statsX = isMobile ? width / 2 : width - 200;
+    const statsY = isMobile ? 140 : 580;
+
     this.handStats = {
-      container: this.add.container(width - 200, 580),
+      container: this.add.container(statsX, statsY),
       countText: null,
       scoreText: null,
       poolText: null
     };
 
+    const fontSize = isMobile ? '14px' : '16px';
+
     this.handStats.countText = this.add.text(0, 0, '磚塊數: 0', {
-      fontSize: '16px',
+      fontSize: fontSize,
       fontFamily: 'Arial',
       color: '#333',
       fontStyle: 'bold'
-    }).setDepth(100);
+    }).setOrigin(isMobile ? 0.5 : 0).setDepth(100);
 
     this.handStats.scoreText = this.add.text(0, 25, '總分: 0', {
-      fontSize: '16px',
+      fontSize: fontSize,
       fontFamily: 'Arial',
       color: '#333',
       fontStyle: 'bold'
-    }).setDepth(100);
+    }).setOrigin(isMobile ? 0.5 : 0).setDepth(100);
 
     this.handStats.poolText = this.add.text(0, 50, '剩餘: 98', {
-      fontSize: '16px',
+      fontSize: fontSize,
       fontFamily: 'Arial',
       color: '#666'
-    }).setDepth(100);
+    }).setOrigin(isMobile ? 0.5 : 0).setDepth(100);
 
     this.handStats.container.add([
       this.handStats.countText,
@@ -102,57 +108,60 @@ class UIScene {
     this.handStats.container.setDepth(100);
   }
 
-  // 創建控制按鈕
   createControlButtons() {
     const { width, height } = this.sys.game.config;
-    const buttonY = height - 60;
+    const isMobile = width < 768;
 
-    // 按鈕配置
-    const buttons = [
-      { x: 150, text: '🎲 載入測試', action: 'loadTest' },
-      { x: 300, text: '➕ 抽磚', action: 'drawTile' },
-      { x: 450, text: '🔍 檢查單詞', action: 'checkWords' },
-      { x: 600, text: '🗑️ 清除選擇', action: 'clearSelection' },
-      { x: 750, text: '⏭️ 結束回合', action: 'endTurn' },
-      { x: width - 150, text: '🚪 離開', action: 'leaveGame', color: 0xdc3545 }
-    ];
+    if (isMobile) {
+      // 移動設備：垂直排列按鈕
+      const buttons = [
+        { y: height - 180, text: '🎲 測試', action: 'loadTest' },
+        { y: height - 150, text: '➕ 抽磚', action: 'drawTile' },
+        { y: height - 120, text: '🔍 檢查', action: 'checkWords' },
+        { y: height - 90, text: '🗑️ 清除', action: 'clearSelection' },
+        { y: height - 60, text: '⏭️ 結束', action: 'endTurn' },
+        { y: height - 30, text: '🚪 離開', action: 'leaveGame', color: 0xdc3545 }
+      ];
 
-    this.buttons = [];
+      buttons.forEach(btnConfig => {
+        this.createButton(width / 2, btnConfig.y, btnConfig.text, btnConfig.action, btnConfig.color, true);
+      });
+    } else {
+      // 桌面設備：水平排列按鈕
+      const buttonY = height - 60;
+      const buttons = [
+        { x: 150, text: '🎲 載入測試', action: 'loadTest' },
+        { x: 300, text: '➕ 抽磚', action: 'drawTile' },
+        { x: 450, text: '🔍 檢查單詞', action: 'checkWords' },
+        { x: 600, text: '🗑️ 清除選擇', action: 'clearSelection' },
+        { x: 750, text: '⏭️ 結束回合', action: 'endTurn' },
+        { x: width - 150, text: '🚪 離開', action: 'leaveGame', color: 0xdc3545 }
+      ];
 
-    buttons.forEach(btnConfig => {
-      const button = this.createButton(
-        btnConfig.x, 
-        buttonY, 
-        btnConfig.text, 
-        btnConfig.action,
-        btnConfig.color
-      );
-      this.buttons.push(button);
-    });
+      buttons.forEach(btnConfig => {
+        this.createButton(btnConfig.x, buttonY, btnConfig.text, btnConfig.action, btnConfig.color, false);
+      });
+    }
   }
 
-  // 創建單個按鈕
-  createButton(x, y, text, action, color = 0x007bff) {
+  createButton(x, y, text, action, color = 0x007bff, isMobile = false) {
     const hoverColor = color === 0xdc3545 ? 0xc82333 : 0x0056b3;
+    const buttonWidth = isMobile ? 200 : 120;
+    const buttonHeight = isMobile ? 25 : 35;
+    const fontSize = isMobile ? '12px' : '14px';
 
-    // 按鈕背景
-    const bg = this.add.rectangle(x, y, 120, 35, color)
+    const bg = this.add.rectangle(x, y, buttonWidth, buttonHeight, color)
       .setStrokeStyle(2, color)
       .setInteractive({ cursor: 'pointer' })
       .setDepth(100);
 
-    // 按鈕文字
     const btnText = this.add.text(x, y, text, {
-      fontSize: '14px',
+      fontSize: fontSize,
       fontFamily: 'Arial',
       color: '#ffffff',
       fontStyle: 'bold'
     }).setOrigin(0.5).setDepth(101);
 
-    // 按鈕容器
-    const button = this.add.container(0, 0, [bg, btnText]);
-
-    // 事件處理
     bg.on('pointerdown', () => {
       this.handleButtonClick(action);
     });
@@ -166,10 +175,8 @@ class UIScene {
       bg.setFillStyle(color);
       bg.setStrokeStyle(2, color);
     });
-
-    return button;
   }
-
+  
   // 處理按鈕點擊
   handleButtonClick(action) {
     console.log('🖱️ 按鈕點擊:', action);
@@ -182,27 +189,27 @@ class UIScene {
           gameScene.loadTestData();
         }
         break;
-        
+
       case 'drawTile':
         this.drawTile();
         break;
-        
+
       case 'checkWords':
         this.checkWords();
         break;
-        
+
       case 'clearSelection':
         this.clearSelection();
         break;
-        
+
       case 'endTurn':
         this.endTurn();
         break;
-        
+
       case 'leaveGame':
         this.leaveGame();
         break;
-        
+
       default:
         console.log('未知的按鈕動作:', action);
     }
@@ -221,14 +228,14 @@ class UIScene {
   // 檢查單詞
   checkWords() {
     const gameScene = this.gameManager?.getGameScene();
-    
+
     if (gameScene && gameScene.selectedTiles && gameScene.selectedTiles.length > 0) {
-      const selectedLetters = gameScene.selectedTiles.map(tile => 
+      const selectedLetters = gameScene.selectedTiles.map(tile =>
         tile.tileData.selectedLetter || tile.tileData.letter
       ).join('');
-      
+
       this.showMessage(`檢查單詞: ${selectedLetters}`, 'info');
-      
+
       if (this.socketClient && this.socketClient.checkWords) {
         const tileIds = gameScene.selectedTiles.map(tile => tile.tileData.id);
         this.socketClient.checkWords(tileIds);
@@ -241,7 +248,7 @@ class UIScene {
   // 清除選擇
   clearSelection() {
     const gameScene = this.gameManager?.getGameScene();
-    
+
     if (gameScene && gameScene.tileHand) {
       gameScene.tileHand.clearSelection();
       this.showMessage('已清除選擇', 'info');
@@ -270,7 +277,7 @@ class UIScene {
   // 設置消息系統
   setupMessageSystem() {
     const { width, height } = this.sys.game.config;
-    
+
     // 消息顯示區域（初始時隱藏）
     this.messageContainer = this.add.container(width / 2, height - 150);
     this.messageContainer.setDepth(200);
@@ -347,7 +354,7 @@ class UIScene {
     if (!handData || !this.handStats) return;
 
     const stats = handData.statistics || {};
-    
+
     this.handStats.countText.setText(`磚塊數: ${stats.totalTiles || 0}`);
     this.handStats.scoreText.setText(`總分: ${stats.totalPoints || 0}`);
   }

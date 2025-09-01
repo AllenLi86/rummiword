@@ -5,6 +5,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Rummiword</title>
+  <link rel="icon" href="/static/word.png" type="image/png">
   <!-- Socket.IO 客戶端 -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.7.4/socket.io.js"></script>
 
@@ -472,15 +473,20 @@
     }
 
     #phaser-game-container {
+      width: 100%;
+      max-width: 100%;
       border: 2px solid #dee2e6;
       border-radius: 10px;
       overflow: hidden;
       background: #f8f9fa;
+      position: relative;
     }
 
     #phaser-game-container canvas {
       display: block;
       margin: 0 auto;
+      max-width: 100% !important;
+      height: auto !important;
     }
 
     .game-controls-panel {
@@ -512,18 +518,21 @@
       }
 
       #phaser-game-container {
-        width: 100%;
-        height: auto;
+        border-radius: 5px;
       }
 
-      .game-controls-panel {
+      .game-section {
         padding: 10px;
       }
+    }
 
-      .game-controls-panel button {
-        display: block;
-        width: 100%;
-        margin: 5px 0;
+    @media (max-width: 480px) {
+      .phaser-game-wrapper {
+        padding: 5px;
+      }
+
+      #phaser-game-container {
+        border-width: 1px;
       }
     }
 
@@ -553,7 +562,7 @@
 
 <body>
   <div class="container">
-    <h1>🎮 Rummiword - v0.1.1 版 (phaser字母磚系統)</h1>
+    <h1>🎮 Rummiword - v0.1.2 版 (phaser字母磚系統)</h1>
 
     <!-- 連接狀態 -->
     <div id="connection-status" class="connection-status info">

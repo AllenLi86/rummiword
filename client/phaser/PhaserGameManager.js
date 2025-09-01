@@ -22,12 +22,39 @@ class PhaserGameManager {
       this.game.destroy(true);
     }
 
+    // 獲取容器大小並計算響應式尺寸
+    const container = document.getElementById('phaser-game-container');
+    const containerRect = container.getBoundingClientRect();
+    const maxWidth = Math.min(containerRect.width || 1200, 1200);
+    const maxHeight = Math.min(window.innerHeight * 0.8, 800);
+    
+    // 根據螢幕大小調整遊戲尺寸
+    let gameWidth = maxWidth;
+    let gameHeight = maxHeight;
+    
+    // 移動設備適配
+    if (window.innerWidth < 768) {
+      gameWidth = Math.min(window.innerWidth - 40, 800);
+      gameHeight = Math.min(window.innerHeight * 0.7, 600);
+    } else if (window.innerWidth < 1024) {
+      gameWidth = Math.min(window.innerWidth * 0.9, 1000);
+      gameHeight = Math.min(window.innerHeight * 0.75, 700);
+    }
+
+    console.log(`🎮 遊戲尺寸: ${gameWidth} x ${gameHeight}`);
+
     const config = {
       type: Phaser.AUTO,
-      width: 1200,
-      height: 800,
+      width: gameWidth,
+      height: gameHeight,
       parent: 'phaser-game-container',
       backgroundColor: '#f8f9fa',
+      scale: {
+        mode: Phaser.Scale.FIT,
+        autoCenter: Phaser.Scale.CENTER_BOTH,
+        width: gameWidth,
+        height: gameHeight
+      },
       physics: {
         default: 'arcade',
         arcade: {
@@ -43,39 +70,104 @@ class PhaserGameManager {
     };
 
     this.game = new Phaser.Game(config);
+    
+    // 監聽視窗大小變化
+    this.setupResponsiveResize();
+    
     return this.game;
+  }
+
+  // 設置響應式調整
+  setupResponsiveResize() {
+    const resizeGame = () => {
+      if (!this.game) return;
+
+      const container = document.getElementById('phaser-game-container');
+      if (!container) return;
+
+      const containerRect = container.getBoundingClientRect();
+      const maxWidth = Math.min(containerRect.width || 1200, 1200);
+      let gameWidth = maxWidth;
+      let gameHeight = Math.min(window.innerHeight * 0.8, 800);
+      
+      // 移動設備適配
+      if (window.innerWidth < 768) {
+        gameWidth = Math.min(window.innerWidth - 40, 800);
+        gameHeight = Math.min(window.innerHeight * 0.7, 600);
+      } else if (window.innerWidth < 1024) {
+        gameWidth = Math.min(window.innerWidth * 0.9, 1000);
+        gameHeight = Math.min(window.innerHeight * 0.75, 700);
+      }
+
+      // 調整遊戲尺寸
+      this.game.scale.resize(gameWidth, gameHeight);
+      
+      console.log(`🔄 遊戲尺寸調整為: ${gameWidth} x ${gameHeight}`);
+    };
+
+    // 防抖處理
+    let resizeTimeout;
+    window.addEventListener('resize', () => {
+      clearTimeout(resizeTimeout);
+      resizeTimeout = setTimeout(resizeGame, 250);
+    });
+
+    // 初始調整
+    setTimeout(resizeGame, 100);
+  }
+
+  // 創建主遊戲場景
+  createGameScene() {
+    this.gameScene = this.game.scene.getScene('GameScene');
+    
+    if (typeof GameScene !== 'undefined') {
+      // 使用 GameScene 類初始化
+      Object.setPrototypeOf(this.gameScene, GameScene.prototype);
+      this.gameScene.init(this.gameData, this.socketClient, this);
+    } else {
+      console.error('❌ GameScene 類未載入');
+    }
+  }
+
+  // 創建 UI 場景
+  createUIScene() {
+    this.uiScene = this.game.scene.getScene('UIScene');
+    
+    if (typeof UIScene !== 'undefined') {
+      // 使用 UIScene 類初始化
+      Object.setPrototypeOf(this.uiScene, UIScene.prototype);
+      this.uiScene.init(this.gameData, this.socketClient, this);
+    } else {
+      console.error('❌ UIScene 類未載入');
+    }
   }
 
   // 獲取場景
   getGameScene() {
-    return this.game.scene.getScene('GameScene');
+    return this.gameScene;
   }
 
   getUIScene() {
-    return this.game.scene.getScene('UIScene');
+    return this.uiScene;
   }
 
   // 更新遊戲數據
   updateGameData(gameData) {
     this.gameData = gameData;
     
-    const gameScene = this.getGameScene();
-    const uiScene = this.getUIScene();
-    
-    if (gameScene && gameScene.updateGameData) {
-      gameScene.updateGameData(gameData);
+    if (this.gameScene && this.gameScene.updateGameData) {
+      this.gameScene.updateGameData(gameData);
     }
     
-    if (uiScene && uiScene.updateGameData) {
-      uiScene.updateGameData(gameData);
+    if (this.uiScene && this.uiScene.updateGameData) {
+      this.uiScene.updateGameData(gameData);
     }
   }
 
   // 顯示訊息
   showMessage(message, type = 'info') {
-    const uiScene = this.getUIScene();
-    if (uiScene && uiScene.showMessage) {
-      uiScene.showMessage(message, type);
+    if (this.uiScene && this.uiScene.showMessage) {
+      this.uiScene.showMessage(message, type);
     }
     
     // 也顯示在 HTML 消息區域
@@ -97,12 +189,6 @@ class PhaserGameManager {
     this.uiScene = null;
     this.socketClient = null;
     this.gameData = null;
-  }
-
-  // 重新啟動遊戲
-  restart(gameData, socketClient) {
-    this.destroy();
-    return this.initialize(gameData, socketClient);
   }
 }
 
@@ -134,7 +220,11 @@ class GameSceneClass extends Phaser.Scene {
     this.createHandArea();
     
     // 創建手牌管理器
-    this.tileHand = new TileHand(this, this.gameManager.socketClient);
+    if (typeof TileHand !== 'undefined') {
+      this.tileHand = new TileHand(this, this.gameManager.socketClient);
+    } else {
+      console.error('❌ TileHand 類未載入');
+    }
 
     // 設置拖放系統
     this.setupDragAndDrop();
@@ -147,23 +237,30 @@ class GameSceneClass extends Phaser.Scene {
   }
 
   createGameBoard() {
-    const { width } = this.sys.game.config;
+    const { width, height } = this.sys.game.config;
+    
+    // 響應式計算棋盤位置和大小
+    const boardWidth = Math.min(width - 100, 1000);
+    const boardHeight = Math.min(height * 0.25, 200);
+    const boardY = Math.min(height * 0.4, 300);
     
     // 棋盤背景
-    this.board = this.add.rectangle(width / 2, 300, width - 100, 200, 0xffffff)
+    this.board = this.add.rectangle(width / 2, boardY, boardWidth, boardHeight, 0xffffff)
       .setStrokeStyle(2, 0xcccccc);
 
-    // 棋盤標題
-    this.add.text(width / 2, 220, '🎯 遊戲棋盤', {
-      fontSize: '24px',
+    // 棋盤標題 - 響應式字體大小
+    const titleFontSize = width < 768 ? '18px' : '24px';
+    this.add.text(width / 2, boardY - boardHeight/2 - 30, '🎯 遊戲棋盤', {
+      fontSize: titleFontSize,
       fontFamily: 'Arial',
       color: '#333',
       fontStyle: 'bold'
     }).setOrigin(0.5);
 
-    // 提示文字
-    this.add.text(width / 2, 300, '拖拽字母磚到這裡組成單詞', {
-      fontSize: '18px',
+    // 提示文字 - 響應式字體大小
+    const hintFontSize = width < 768 ? '14px' : '18px';
+    this.add.text(width / 2, boardY, '拖拽字母磚到這裡組成單詞', {
+      fontSize: hintFontSize,
       fontFamily: 'Arial',
       color: '#666'
     }).setOrigin(0.5);
@@ -174,20 +271,26 @@ class GameSceneClass extends Phaser.Scene {
   }
 
   createHandArea() {
-    const { width } = this.sys.game.config;
-    const handY = 650;
+    const { width, height } = this.sys.game.config;
+    
+    // 響應式計算手牌位置
+    const handY = height - 100; // 從底部算起
+    const handWidth = Math.min(width - 100, 1000);
+    const handHeight = Math.min(height * 0.15, 120);
 
     // 手牌背景
-    this.handArea = this.add.rectangle(width / 2, handY, width - 100, 120, 0xe3f2fd)
+    this.handArea = this.add.rectangle(width / 2, handY, handWidth, handHeight, 0xe3f2fd)
       .setStrokeStyle(2, 0x007bff);
 
-    // 手牌標題
-    this.add.text(100, handY - 70, '🎯 我的手牌', {
-      fontSize: '20px',
+    // 手牌標題 - 響應式位置和字體
+    const titleFontSize = width < 768 ? '16px' : '20px';
+    const titleX = width < 768 ? width / 2 : 100;
+    this.add.text(titleX, handY - handHeight/2 - 25, '🎯 我的手牌', {
+      fontSize: titleFontSize,
       fontFamily: 'Arial',
       color: '#333',
       fontStyle: 'bold'
-    });
+    }).setOrigin(width < 768 ? 0.5 : 0);
 
     // 設置手牌區域為拖放目標
     this.handArea.setInteractive();
@@ -239,7 +342,7 @@ class GameSceneClass extends Phaser.Scene {
     console.log('🎯 移動磚塊到棋盤:', tileObject.tileData.letter);
     
     const boardCenterX = this.sys.game.config.width / 2;
-    const boardCenterY = 300;
+    const boardCenterY = Math.min(this.sys.game.config.height * 0.4, 300);
     
     this.tweens.add({
       targets: tileObject,
@@ -379,16 +482,18 @@ class UISceneClass extends Phaser.Scene {
     const { width, height } = this.sys.game.config;
 
     // 創建遊戲標題
+    const titleFontSize = width < 768 ? '24px' : '36px';
     this.add.text(width / 2, 40, '🎮 Rummiword', {
-      fontSize: '36px',
+      fontSize: titleFontSize,
       fontFamily: 'Arial',
       color: '#333',
       fontStyle: 'bold'
     }).setOrigin(0.5).setDepth(100);
 
     // 遊戲資訊
-    this.gameInfoText = this.add.text(width / 2, 80, '正在載入遊戲資訊...', {
-      fontSize: '16px',
+    const infoFontSize = width < 768 ? '14px' : '16px';
+    this.gameInfoText = this.add.text(width / 2, width < 768 ? 70 : 80, '正在載入遊戲資訊...', {
+      fontSize: infoFontSize,
       fontFamily: 'Arial',
       color: '#666'
     }).setOrigin(0.5).setDepth(100);
@@ -401,35 +506,41 @@ class UISceneClass extends Phaser.Scene {
   }
 
   createStats() {
-    const { width } = this.sys.game.config;
+    const { width, height } = this.sys.game.config;
+    const isMobile = width < 768;
 
-    // 手牌統計
+    // 手牌統計 - 響應式位置
+    const statsX = isMobile ? width / 2 : width - 200;
+    const statsY = isMobile ? 110 : height - 220;
+
     this.handStats = {
-      container: this.add.container(width - 200, 580),
+      container: this.add.container(statsX, statsY),
       countText: null,
       scoreText: null,
       poolText: null
     };
 
+    const fontSize = isMobile ? '14px' : '16px';
+    
     this.handStats.countText = this.add.text(0, 0, '磚塊數: 0', {
-      fontSize: '16px',
+      fontSize: fontSize,
       fontFamily: 'Arial',
       color: '#333',
       fontStyle: 'bold'
-    }).setDepth(100);
+    }).setOrigin(isMobile ? 0.5 : 0).setDepth(100);
 
     this.handStats.scoreText = this.add.text(0, 25, '總分: 0', {
-      fontSize: '16px',
+      fontSize: fontSize,
       fontFamily: 'Arial',
       color: '#333',
       fontStyle: 'bold'
-    }).setDepth(100);
+    }).setOrigin(isMobile ? 0.5 : 0).setDepth(100);
 
     this.handStats.poolText = this.add.text(0, 50, '剩餘: 98', {
-      fontSize: '16px',
+      fontSize: fontSize,
       fontFamily: 'Arial',
       color: '#666'
-    }).setDepth(100);
+    }).setOrigin(isMobile ? 0.5 : 0).setDepth(100);
 
     this.handStats.container.add([
       this.handStats.countText,
@@ -442,32 +553,54 @@ class UISceneClass extends Phaser.Scene {
 
   createControlButtons() {
     const { width, height } = this.sys.game.config;
-    const buttonY = height - 60;
+    const isMobile = width < 768;
+    
+    if (isMobile) {
+      // 移動設備：垂直排列按鈕
+      const startY = height - 160;
+      const buttons = [
+        { y: startY, text: '🎲 測試', action: 'loadTest' },
+        { y: startY + 30, text: '➕ 抽磚', action: 'drawTile' },
+        { y: startY + 60, text: '🔍 檢查', action: 'checkWords' },
+        { y: startY + 90, text: '🗑️ 清除', action: 'clearSelection' },
+        { y: startY + 120, text: '⏭️ 結束', action: 'endTurn' },
+        { y: startY + 150, text: '🚪 離開', action: 'leaveGame', color: 0xdc3545 }
+      ];
 
-    const buttons = [
-      { x: 150, text: '🎲 載入測試', action: 'loadTest' },
-      { x: 300, text: '➕ 抽磚', action: 'drawTile' },
-      { x: 450, text: '🔍 檢查單詞', action: 'checkWords' },
-      { x: 600, text: '🗑️ 清除選擇', action: 'clearSelection' },
-      { x: 750, text: '⏭️ 結束回合', action: 'endTurn' },
-      { x: width - 150, text: '🚪 離開', action: 'leaveGame', color: 0xdc3545 }
-    ];
+      buttons.forEach(btnConfig => {
+        this.createButton(width / 2, btnConfig.y, btnConfig.text, btnConfig.action, btnConfig.color, true);
+      });
+    } else {
+      // 桌面設備：水平排列按鈕
+      const buttonY = height - 60;
+      const buttons = [
+        { x: 150, text: '🎲 載入測試', action: 'loadTest' },
+        { x: 300, text: '➕ 抽磚', action: 'drawTile' },
+        { x: 450, text: '🔍 檢查單詞', action: 'checkWords' },
+        { x: 600, text: '🗑️ 清除選擇', action: 'clearSelection' },
+        { x: 750, text: '⏭️ 結束回合', action: 'endTurn' },
+        { x: width - 150, text: '🚪 離開', action: 'leaveGame', color: 0xdc3545 }
+      ];
 
-    buttons.forEach(btnConfig => {
-      this.createButton(btnConfig.x, buttonY, btnConfig.text, btnConfig.action, btnConfig.color);
-    });
+      buttons.forEach(btnConfig => {
+        this.createButton(btnConfig.x, buttonY, btnConfig.text, btnConfig.action, btnConfig.color, false);
+      });
+    }
   }
 
-  createButton(x, y, text, action, color = 0x007bff) {
+  createButton(x, y, text, action, color = 0x007bff, isMobile = false) {
     const hoverColor = color === 0xdc3545 ? 0xc82333 : 0x0056b3;
+    const buttonWidth = isMobile ? 200 : 120;
+    const buttonHeight = isMobile ? 25 : 35;
+    const fontSize = isMobile ? '12px' : '14px';
 
-    const bg = this.add.rectangle(x, y, 120, 35, color)
+    const bg = this.add.rectangle(x, y, buttonWidth, buttonHeight, color)
       .setStrokeStyle(2, color)
       .setInteractive({ cursor: 'pointer' })
       .setDepth(100);
 
     const btnText = this.add.text(x, y, text, {
-      fontSize: '14px',
+      fontSize: fontSize,
       fontFamily: 'Arial',
       color: '#ffffff',
       fontStyle: 'bold'
@@ -557,20 +690,22 @@ class UISceneClass extends Phaser.Scene {
     };
 
     const color = colors[type] || colors.info;
+    const { width } = this.sys.game.config;
+    const isMobile = width < 768;
 
-    const msgBg = this.add.rectangle(0, 0, 400, 50, color.bg, 0.9)
+    const msgBg = this.add.rectangle(0, 0, isMobile ? 300 : 400, 50, color.bg, 0.9)
       .setStrokeStyle(2, color.bg)
       .setDepth(201);
 
     const msgText = this.add.text(0, 0, message, {
-      fontSize: '16px',
+      fontSize: isMobile ? '14px' : '16px',
       fontFamily: 'Arial',
       color: color.text,
       fontStyle: 'bold',
-      wordWrap: { width: 380 }
+      wordWrap: { width: isMobile ? 280 : 380 }
     }).setOrigin(0.5).setDepth(202);
 
-    this.currentMessage = this.add.container(this.sys.game.config.width / 2, 120, [msgBg, msgText]);
+    this.currentMessage = this.add.container(width / 2, isMobile ? 180 : 120, [msgBg, msgText]);
     this.currentMessage.setDepth(200);
 
     this.currentMessage.setAlpha(0);
