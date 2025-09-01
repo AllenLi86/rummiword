@@ -6,18 +6,18 @@ let socketClient = null;
 // 初始化 WebSocket 連接
 function initializeWebSocket() {
   socketClient = new SocketClient();
-  
+
   // 設置事件監聽器
   setupSocketEventHandlers();
-  
+
   return socketClient;
 }
 
 function setupSocketEventHandlers() {
   if (!socketClient) return;
-  
+
   // ========== 原有的連接和房間事件 ==========
-  
+
   // 連接狀態
   socketClient.on('connected', () => {
     updateConnectionStatus('已連接到服務器', 'success');
@@ -104,28 +104,28 @@ function setupSocketEventHandlers() {
   });
 
   // ========== 遊戲事件 - 整合字母磚系統 ==========
-  
+
   socketClient.on('gameStarted', (data) => {
     console.log('🎮 遊戲開始!', data);
-    
-    // 使用字母磚遊戲界面（如果可用）
-    if (typeof startGameInterface === 'function') {
-      startGameInterface(data.gameData);
-    } else {
-      // 後備方案：使用原始界面
-      startBasicGameInterface(data.gameData);
+
+    try {
+      // 使用修正後的遊戲界面啟動函數
+      if (typeof startGameInterface === 'function') {
+        startGameInterface(data.gameData);
+      } else {
+        console.error('❌ startGameInterface 函數不存在');
+        showMessage('遊戲界面載入失敗', 'error');
+      }
+    } catch (error) {
+      console.error('❌ 啟動遊戲界面時發生錯誤:', error);
+      showMessage('遊戲界面載入錯誤: ' + error.message, 'error');
     }
-    
-    showMessage('遊戲開始！字母磚系統已啟動', 'success');
-    
-    // 初始化字母磚系統擴展
-    if (typeof initializeTileSystemExtension === 'function') {
-      setTimeout(initializeTileSystemExtension, 1000);
-    }
+
+    showMessage('遊戲開始！', 'success');
   });
 
   // ========== 字母磚系統事件 ==========
-  
+
   // 手牌更新事件
   socketClient.on('myHandUpdate', (data) => {
     console.log('🎯 收到手牌更新:', data);
@@ -146,7 +146,7 @@ function setupSocketEventHandlers() {
   socketClient.on('tileDrawn', (data) => {
     console.log('🎲 抽磚結果:', data);
     showMessage(`抽到 ${data.tiles ? data.tiles.length : data.count || 1} 張新磚塊`, 'success');
-    
+
     // 自動請求更新手牌
     setTimeout(() => {
       if (socketClient && socketClient.requestMyHand) {
@@ -182,9 +182,9 @@ function setupSocketEventHandlers() {
   socketClient.on('turnChanged', (data) => {
     console.log('🔄 回合變更:', data);
     const isMyTurn = data.currentPlayerId === socketClient.currentPlayer?.playerId;
-    
+
     showMessage(`現在是 ${data.currentPlayerName} 的回合`, isMyTurn ? 'success' : 'info');
-    
+
     // 更新 UI 中的當前玩家顯示
     const currentPlayerEl = document.querySelector('.current-player strong');
     if (currentPlayerEl) {
@@ -198,7 +198,7 @@ function setupSocketEventHandlers() {
     console.log('📤 回合提交結果:', data);
     if (data.success) {
       showMessage(`回合提交成功！得分: ${data.score || 0} 分`, 'success');
-      
+
       // 更新遊戲狀態
       if (socketClient && socketClient.requestMyHand) {
         socketClient.requestMyHand();
@@ -214,14 +214,14 @@ function setupSocketEventHandlers() {
   // 遊戲結束事件
   socketClient.on('gameEnded', (data) => {
     console.log('🏁 遊戲結束:', data);
-    
+
     let message = `遊戲結束！🏆 獲勝者: ${data.winner || '未知'}`;
     if (data.scores && Array.isArray(data.scores)) {
       message += `\n最終得分: ${data.scores.join(', ')}`;
     }
-    
+
     showMessage(message, 'success');
-    
+
     // 顯示結果並提供返回大廳選項
     setTimeout(() => {
       if (confirm('遊戲已結束！\n\n' + message + '\n\n是否返回大廳？')) {
@@ -272,12 +272,12 @@ function showPlayerInfo(player) {
 function updateRoomsList(rooms) {
   const roomsListEl = document.getElementById('rooms-list');
   if (!roomsListEl) return;
-  
+
   if (rooms.length === 0) {
     roomsListEl.innerHTML = '<div class="no-rooms">沒有可用的房間，創建一個新房間開始遊戲！</div>';
     return;
   }
-  
+
   roomsListEl.innerHTML = rooms.map(room => `
     <div class="room-card ${room.canJoin ? '' : 'disabled'}" ${room.canJoin ? `onclick="joinRoom('${room.id}')"` : ''}>
       <div class="room-name">${room.name}</div>
@@ -286,10 +286,10 @@ function updateRoomsList(rooms) {
         <span class="room-status ${room.gameState}">${getRoomStatusText(room.gameState)}</span>
       </div>
       <div class="room-actions">
-        ${room.canJoin ? 
-          '<button class="join-btn" onclick="event.stopPropagation(); joinRoom(\'' + room.id + '\')">加入</button>' : 
-          '<button class="join-btn" disabled>無法加入</button>'
-        }
+        ${room.canJoin ?
+      '<button class="join-btn" onclick="event.stopPropagation(); joinRoom(\'' + room.id + '\')">加入</button>' :
+      '<button class="join-btn" disabled>無法加入</button>'
+    }
       </div>
     </div>
   `).join('');
@@ -314,14 +314,14 @@ function showRoomInterface(room) {
 function updateRoomInterface(room) {
   const roomInfoEl = document.getElementById('room-info');
   const playersListEl = document.getElementById('room-players-list');
-  
+
   if (roomInfoEl) {
     roomInfoEl.innerHTML = `
       <h2>🏠 ${room.name}</h2>
       <p>玩家: ${room.currentPlayers}/${room.maxPlayers} | 狀態: ${getRoomStatusText(room.gameState)}</p>
     `;
   }
-  
+
   if (playersListEl) {
     playersListEl.innerHTML = room.players.map(player => `
       <div class="player-item ${player.isReady ? 'ready' : ''}">
@@ -330,10 +330,10 @@ function updateRoomInterface(room) {
       </div>
     `).join('');
   }
-  
+
   // 更新準備按鈕狀態
   updateReadyButton(room);
-  
+
   // 檢查是否可以開始遊戲
   const allReady = room.players.every(p => p.isReady);
   enableStartButton(allReady && room.players.length >= 2);
@@ -386,7 +386,7 @@ function showSection(sectionId) {
   sections.forEach(section => {
     section.classList.remove('active');
   });
-  
+
   const targetSection = document.getElementById(sectionId);
   if (targetSection) {
     targetSection.classList.add('active');
@@ -398,20 +398,20 @@ function showSection(sectionId) {
 // 開始遊戲界面 - 整合字母磚系統
 function startGameInterface(gameData) {
   console.log('🎮 啟動字母磚遊戲界面', gameData);
-  
+
   showSection('game-section');
-  
+
   // 如果有字母磚 UI 管理器，使用它
   if (typeof tileUIManager !== 'undefined' && tileUIManager.createGameInterface) {
     tileUIManager.createGameInterface(gameData);
-    
+
     // 請求我的手牌數據
     setTimeout(() => {
       if (socketClient && socketClient.requestMyHand) {
         socketClient.requestMyHand();
       }
     }, 1000);
-    
+
   } else {
     // 後備方案：基本遊戲界面
     startBasicGameInterface(gameData);
@@ -453,25 +453,25 @@ function showMessage(message, type = 'info') {
     messageDiv.textContent = `[${new Date().toLocaleTimeString()}] ${message}`;
     messageEl.appendChild(messageDiv);
     messageEl.scrollTop = messageEl.scrollHeight;
-    
+
     // 限制訊息數量
     while (messageEl.children.length > 50) {
       messageEl.removeChild(messageEl.firstChild);
     }
   }
-  
+
   console.log(`[${type.toUpperCase()}] ${message}`);
 }
 
 // ========== 全局函數供 HTML 調用 ==========
 
 // 設置玩家名稱
-window.setPlayerName = function(name) {
+window.setPlayerName = function (name) {
   if (!name || name.trim() === '') {
     showMessage('請輸入有效的名稱', 'error');
     return;
   }
-  
+
   if (socketClient) {
     const success = socketClient.setPlayerName(name.trim());
     if (success) {
@@ -488,12 +488,12 @@ window.setPlayerName = function(name) {
 };
 
 // 創建房間
-window.createRoom = function(roomName, maxPlayers = 4) {
+window.createRoom = function (roomName, maxPlayers = 4) {
   if (!roomName || roomName.trim() === '') {
     showMessage('請輸入房間名稱', 'error');
     return;
   }
-  
+
   if (socketClient) {
     const success = socketClient.createRoom(roomName.trim(), parseInt(maxPlayers));
     if (!success) {
@@ -505,7 +505,7 @@ window.createRoom = function(roomName, maxPlayers = 4) {
 };
 
 // 加入房間
-window.joinRoom = function(roomId) {
+window.joinRoom = function (roomId) {
   if (socketClient) {
     const success = socketClient.joinRoom(roomId);
     if (!success) {
@@ -517,14 +517,14 @@ window.joinRoom = function(roomId) {
 };
 
 // 離開房間
-window.leaveRoom = function() {
+window.leaveRoom = function () {
   if (socketClient) {
     socketClient.leaveRoom();
   }
 };
 
 // 切換準備狀態
-window.toggleReady = function() {
+window.toggleReady = function () {
   if (socketClient) {
     const success = socketClient.toggleReady();
     if (!success) {
@@ -536,7 +536,7 @@ window.toggleReady = function() {
 };
 
 // 開始遊戲
-window.startGame = function() {
+window.startGame = function () {
   if (socketClient) {
     const success = socketClient.startGame();
     if (!success) {
@@ -548,7 +548,7 @@ window.startGame = function() {
 };
 
 // HTML 輔助函數
-window.setPlayerNameFromInput = function() {
+window.setPlayerNameFromInput = function () {
   const input = document.getElementById('player-name-input');
   const name = input.value.trim();
   if (name) {
@@ -556,13 +556,13 @@ window.setPlayerNameFromInput = function() {
   }
 };
 
-window.createRoomFromInput = function() {
+window.createRoomFromInput = function () {
   const nameInput = document.getElementById('room-name-input');
   const maxPlayersSelect = document.getElementById('max-players-select');
-  
+
   const roomName = nameInput.value.trim();
   const maxPlayers = parseInt(maxPlayersSelect.value);
-  
+
   if (roomName) {
     createRoom(roomName, maxPlayers);
     nameInput.value = ''; // 清空輸入框
@@ -572,23 +572,23 @@ window.createRoomFromInput = function() {
 };
 
 // 添加清除保存名稱的功能
-window.clearSavedName = function() {
+window.clearSavedName = function () {
   localStorage.removeItem('playerName');
   localStorage.removeItem('lastSessionTime');
-  
+
   const nameInput = document.getElementById('player-name-input');
   if (nameInput) {
     nameInput.value = '';
     nameInput.placeholder = '輸入你的名稱';
   }
-  
+
   showMessage('已清除保存的名稱', 'info');
 };
 
 // ========== 字母磚遊戲控制函數 ==========
 
 // 請求我的手牌
-window.requestMyHand = function() {
+window.requestMyHand = function () {
   if (socketClient && socketClient.requestMyHand) {
     const success = socketClient.requestMyHand();
     if (success) {
@@ -603,7 +603,7 @@ window.requestMyHand = function() {
 };
 
 // 抽取字母磚
-window.drawTile = function() {
+window.drawTile = function () {
   if (socketClient && socketClient.drawTile) {
     socketClient.drawTile();
   } else {
@@ -612,18 +612,18 @@ window.drawTile = function() {
 };
 
 // 結束回合
-window.endTurn = function() {
+window.endTurn = function () {
   if (socketClient && socketClient.endTurn) {
-    const selectedTiles = typeof tileUIManager !== 'undefined' 
-      ? tileUIManager.getSelectedTiles() 
+    const selectedTiles = typeof tileUIManager !== 'undefined'
+      ? tileUIManager.getSelectedTiles()
       : [];
-    
+
     socketClient.endTurn(selectedTiles);
-    
+
     if (typeof tileUIManager !== 'undefined' && tileUIManager.clearSelection) {
       tileUIManager.clearSelection();
     }
-    
+
     showMessage('回合已結束', 'info');
   } else {
     showMessage('結束回合功能不可用', 'error');
@@ -631,7 +631,7 @@ window.endTurn = function() {
 };
 
 // 洗牌手牌
-window.shuffleHand = function() {
+window.shuffleHand = function () {
   if (socketClient && socketClient.shuffleHand) {
     socketClient.shuffleHand();
   } else {
@@ -640,26 +640,26 @@ window.shuffleHand = function() {
 };
 
 // 檢查單詞
-window.checkWords = function() {
+window.checkWords = function () {
   if (!socketClient || !socketClient.checkWords) {
     showMessage('檢查單詞功能不可用', 'error');
     return;
   }
 
-  const selectedTiles = typeof tileUIManager !== 'undefined' 
-    ? tileUIManager.getSelectedTiles() 
+  const selectedTiles = typeof tileUIManager !== 'undefined'
+    ? tileUIManager.getSelectedTiles()
     : [];
 
   if (selectedTiles.length === 0) {
     showMessage('請先選擇字母磚', 'warning');
     return;
   }
-  
+
   socketClient.checkWords(selectedTiles);
 };
 
 // 清除選擇
-window.clearSelection = function() {
+window.clearSelection = function () {
   if (typeof tileUIManager !== 'undefined' && tileUIManager.clearSelection) {
     tileUIManager.clearSelection();
     showMessage('已清除選擇', 'info');
@@ -669,21 +669,21 @@ window.clearSelection = function() {
 };
 
 // 離開遊戲
-window.leaveGame = function() {
+window.leaveGame = function () {
   if (confirm('確定要離開遊戲嗎？進行中的遊戲將會失去進度。')) {
     leaveRoom();
   }
 };
 
 // 關閉萬用字母模態框
-window.closeBlankTileModal = function() {
+window.closeBlankTileModal = function () {
   if (typeof tileUIManager !== 'undefined' && tileUIManager.closeBlankTileModal) {
     tileUIManager.closeBlankTileModal();
   }
 };
 
 // 測試字母磚系統
-window.testTileSystem = function() {
+window.testTileSystem = function () {
   if (typeof testTileSystemConnection === 'function') {
     const result = testTileSystemConnection();
     if (result) {
@@ -710,7 +710,7 @@ class SessionManager {
   isNewSession() {
     const lastSession = localStorage.getItem(this.sessionKey);
     if (!lastSession) return true;
-    
+
     const timeDiff = Date.now() - parseInt(lastSession);
     return timeDiff > 30 * 60 * 1000; // 30分鐘
   }
@@ -735,20 +735,20 @@ const sessionManager = new SessionManager();
 // DOM 載入完成後的初始化
 document.addEventListener('DOMContentLoaded', () => {
   console.log('🚀 初始化 WebSocket 連接和字母磚系統...');
-  
+
   setTimeout(() => {
     // 初始化 WebSocket
     initializeWebSocket();
-    
+
     // 初始化字母磚系統擴展（如果可用）
     if (typeof initializeTileSystemExtension === 'function') {
       setTimeout(initializeTileSystemExtension, 1000);
     }
-    
+
     // 處理保存的玩家名稱
     const savedName = localStorage.getItem('playerName');
     const isNewSession = sessionManager.isNewSession();
-    
+
     if (savedName && !isNewSession) {
       // 舊會話，自動填入名稱但不自動設置
       const nameInput = document.getElementById('player-name-input');
@@ -757,7 +757,7 @@ document.addEventListener('DOMContentLoaded', () => {
         nameInput.placeholder = `上次使用: ${savedName}`;
       }
       updateConnectionStatus(`歡迎回來，${savedName}！點擊確認繼續`, 'info');
-      
+
     } else if (savedName && isNewSession) {
       // 新會話，提供選擇
       const nameInput = document.getElementById('player-name-input');
@@ -766,7 +766,7 @@ document.addEventListener('DOMContentLoaded', () => {
         nameInput.placeholder = `之前使用過: ${savedName}`;
       }
       updateConnectionStatus('可以使用之前的名稱，或輸入新名稱', 'info');
-      
+
     } else {
       // 全新用戶
       updateConnectionStatus('歡迎！請設置你的名稱', 'info');
@@ -781,14 +781,14 @@ const isDevelopment = window.location.hostname === 'localhost' || window.locatio
 
 if (isDevelopment) {
   console.log('🔧 開發模式已啟用');
-  
+
   // 添加調試函數到全局作用域
-  window.debugTileSystem = function() {
+  window.debugTileSystem = function () {
     console.log('=== 字母磚系統調試資訊 ===');
     console.log('SocketClient:', typeof socketClient !== 'undefined' ? socketClient : '未初始化');
     console.log('TileUIManager:', typeof tileUIManager !== 'undefined' ? tileUIManager : '未初始化');
     console.log('當前遊戲狀態:', typeof gameState !== 'undefined' ? gameState : '未定義');
-    
+
     if (typeof socketClient !== 'undefined' && socketClient) {
       console.log('連接狀態:', socketClient.isConnected ? socketClient.isConnected() : '未知');
       console.log('當前房間:', socketClient.currentRoom || '無');
@@ -797,13 +797,13 @@ if (isDevelopment) {
   };
 
   // 添加快速測試函數
-  window.quickTest = function() {
+  window.quickTest = function () {
     console.log('🧪 執行快速測試...');
-    
+
     // 測試 WebSocket 連接
     if (typeof socketClient !== 'undefined' && socketClient) {
       console.log('✅ SocketClient 已初始化');
-      
+
       // 測試字母磚方法
       if (socketClient.requestMyHand) {
         console.log('✅ 字母磚方法可用');
@@ -813,24 +813,24 @@ if (isDevelopment) {
     } else {
       console.log('❌ SocketClient 未初始化');
     }
-    
+
     // 測試 UI 管理器
     if (typeof tileUIManager !== 'undefined') {
       console.log('✅ TileUIManager 已初始化');
     } else {
       console.log('❌ TileUIManager 未初始化');
     }
-    
+
     showMessage('快速測試完成，請檢查控制台', 'info');
   };
 }
 
 // 確認出牌
-window.confirmPlayedWord = function() {
+window.confirmPlayedWord = function () {
   if (typeof tileUIManager !== 'undefined' && tileUIManager.playedTiles.length > 0) {
     const playedLetters = tileUIManager.playedTiles.map(t => t.letter).join('');
     showMessage(`確認出牌: ${playedLetters} (${tileUIManager.playedTiles.length}張磚塊)`, 'success');
-    
+
     // 這裡之後可以添加單詞驗證邏輯
     console.log('🎯 確認出牌:', tileUIManager.playedTiles);
   } else {
@@ -839,14 +839,14 @@ window.confirmPlayedWord = function() {
 };
 
 // 收回所有磚塊
-window.recallTiles = function() {
+window.recallTiles = function () {
   if (typeof tileUIManager !== 'undefined') {
     // 收回所有已出牌磚塊
     const playedTileIds = [...tileUIManager.playedTiles.map(t => t.id)];
     playedTileIds.forEach(tileId => {
       tileUIManager.recallSingleTile(tileId);
     });
-    
+
     showMessage('所有磚塊已收回手牌', 'info');
   }
 };

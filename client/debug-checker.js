@@ -30,22 +30,37 @@ function performSystemCheck() {
   });
 
   // 檢查 DOM 元素
-  const domChecks = [
-    'game-section',
-    'game-area', 
-    'my-hand',
-    'hand-count',
-    'hand-score',
-    'pool-count'
-  ];
+  // const domChecks = [
+  //   'game-section',
+  //   'game-area', 
+  //   'my-hand',
+  //   'hand-count',
+  //   'hand-score',
+  //   'pool-count'
+  // ];
 
-  console.log('\n📋 DOM 元素檢查:');
-  domChecks.forEach(id => {
-    const element = document.getElementById(id);
-    const exists = element !== null;
-    console.log(`${exists ? '✅' : '❌'} #${id}: ${exists ? '存在' : '不存在'}`);
-    checkResults.checks.push({ name: `DOM: ${id}`, passed: exists });
-  });
+  // console.log('\n📋 DOM 元素檢查:');
+  // domChecks.forEach(id => {
+  //   const element = document.getElementById(id);
+  //   const exists = element !== null;
+  //   console.log(`${exists ? '✅' : '❌'} #${id}: ${exists ? '存在' : '不存在'}`);
+  //   checkResults.checks.push({ name: `DOM: ${id}`, passed: exists });
+  // });
+  
+  // 檢查 DOM 元素（只有在遊戲界面載入後才檢查）
+  const gameSection = document.getElementById('game-section');
+  if (gameSection && gameSection.classList.contains('active')) {
+    console.log('\n📋 DOM 元素檢查 (遊戲界面已載入):');
+    domChecks.forEach(id => {
+      const element = document.getElementById(id);
+      const exists = element !== null;
+      console.log(`${exists ? '✅' : '❌'} #${id}: ${exists ? '存在' : '不存在'}`);
+      checkResults.checks.push({ name: `DOM: ${id}`, passed: exists });
+    });
+  } else {
+    console.log('\n📋 DOM 元素檢查: 跳過 (遊戲界面尚未載入)');
+    checkResults.checks.push({ name: 'DOM: 遊戲界面', passed: false, note: '尚未載入' });
+  }
 
   return checkResults;
 }

@@ -595,81 +595,83 @@
   <script>
     // 確保初始化函數在所有檔案載入後執行
     let initializationComplete = false;
-    
-    // 檢查所有必要的對象是否已載入
-    function checkInitialization() {
-      const required = [
-        'SocketClient',
-        'TileSystem',
-        'tileUIManager',
-        'initializeTileSystemExtension'
-      ];
-      
+
+    // 檢查必要組件是否載入（簡化版本）
+    function checkBasicInitialization() {
+      const required = ['SocketClient'];
       const missing = required.filter(name => typeof window[name] === 'undefined');
-      
+
       if (missing.length === 0) {
-        console.log('✅ 所有必要組件已載入');
+        console.log('✅ 基本組件已載入');
         return true;
       } else {
-        console.log('⏳ 等待載入:', missing.join(', '));
+        console.log('⏳ 等待基本組件載入:', missing.join(', '));
         return false;
       }
     }
 
-    // 強制初始化字母磚系統
-    function forceInitializeTileSystem() {
-      console.log('🔧 強制初始化字母磚系統...');
-      
-      // 檢查並初始化
-      if (checkInitialization()) {
+    // 等待並初始化基本 WebSocket 連接
+    function initializeBasicSystem() {
+      console.log('🔧 初始化基本系統...');
+
+      if (checkBasicInitialization()) {
+        // 只初始化 WebSocket，不初始化字母磚系統
+        console.log('✅ 開始初始化 WebSocket 連接');
+        return true;
+      }
+      return false;
+    }
+
+    // 延遲初始化字母磚系統（當遊戲真正開始時）
+    function initializeTileSystemLater() {
+      console.log('🎮 遊戲開始時初始化字母磚系統...');
+
+      // 檢查字母磚系統組件
+      const tileComponents = ['TileSystem', 'tileUIManager'];
+      const missing = tileComponents.filter(name => typeof window[name] === 'undefined');
+
+      if (missing.length === 0) {
         if (typeof initializeTileSystemExtension === 'function') {
           initializeTileSystemExtension();
-          initializationComplete = true;
-          console.log('✅ 字母磚系統初始化完成');
+          console.log('✅ 字母磚系統已初始化');
+          return true;
         }
       } else {
-        console.log('❌ 無法初始化，缺少必要組件');
+        console.log('⚠️ 字母磚組件缺失:', missing.join(', '));
+        return false;
       }
     }
 
-    // 覆蓋原來的 startGameInterface 函數
-    window.originalStartGameInterface = window.startGameInterface;
-    
-    window.startGameInterface = function(gameData) {
-      console.log('🎮 啟動字母磚遊戲界面 (覆蓋版本)', gameData);
-      
+    // 修正的 startGameInterface 函數
+    window.startGameInterface = function (gameData) {
+      console.log('🎮 啟動遊戲界面', gameData);
+
       // 切換到遊戲區段
       showSection('game-section');
-      
-      // 確保字母磚系統已初始化
+
+      // 先初始化字母磚系統（如果還沒初始化）
       if (!initializationComplete) {
-        console.log('🔧 字母磚系統未初始化，現在初始化...');
-        forceInitializeTileSystem();
+        console.log('🔧 首次初始化字母磚系統...');
+        const success = initializeTileSystemLater();
+        if (success) {
+          initializationComplete = true;
+        }
       }
-      
-      // 等待一下然後創建界面
+
+      // 延遲創建界面，確保所有組件都已準備好
       setTimeout(() => {
         if (typeof tileUIManager !== 'undefined' && tileUIManager.createGameInterface) {
           console.log('✅ 使用字母磚 UI 管理器');
           tileUIManager.createGameInterface(gameData);
-          
-          // 請求手牌數據
+
+          // 再延遲一點載入測試數據
           setTimeout(() => {
-            if (socketClient && socketClient.requestMyHand) {
-              socketClient.requestMyHand();
-            } else {
-              console.log('⚠️ requestMyHand 方法不可用，使用測試數據');
-              // 使用測試數據
-              if (typeof generateMockTileData === 'function') {
-                const mockData = {
-                  tiles: generateMockTileData(),
-                  statistics: { totalTiles: 7, totalPoints: 14 }
-                };
-                tileUIManager.updateMyHand(mockData);
-              }
+            if (typeof loadMockData === 'function') {
+              console.log('📦 自動載入測試手牌');
+              loadMockData();
             }
           }, 1000);
-          
+
         } else {
           console.log('❌ TileUIManager 不可用，使用基本界面');
           showBasicGameInterface(gameData);
@@ -677,35 +679,39 @@
       }, 500);
     };
 
-    // 基本遊戲界面（調試用）
+    // 簡化的基本遊戲界面
     function showBasicGameInterface(gameData) {
       const gameAreaEl = document.getElementById('game-area');
       if (gameAreaEl) {
         gameAreaEl.innerHTML = `
-          <div class="game-placeholder">
-            <h2>🎮 遊戲開始了！</h2>
-            <div class="game-info">
-              <p><strong>參與玩家:</strong> ${gameData.players.map(p => p.name).join(', ')}</p>
-              <p><strong>當前回合:</strong> ${gameData.round}</p>
-              <p><strong>遊戲狀態:</strong> ${gameData.status}</p>
-            </div>
-            <div class="game-placeholder-content">
-              <p>🔧 字母磚系統載入中...</p>
-              <p>📝 如果持續看到此訊息，表示有初始化問題</p>
-              <div style="margin: 20px 0;">
-                <button class="control-btn" onclick="forceInitializeTileSystem()">🔧 重新初始化</button>
-                <button class="control-btn" onclick="requestMyHand()">🎯 請求手牌</button>
-                <button class="control-btn" onclick="testTileSystem()">🧪 測試系統</button>
-                <button class="control-btn" onclick="debugTileSystem()">🐛 調試資訊</button>
-              </div>
-            </div>
-            <div class="game-actions">
-              <button class="leave-btn" onclick="leaveRoom()">離開遊戲</button>
-            </div>
-          </div>
-        `;
+      <div class="game-placeholder">
+        <h2>🎮 遊戲開始了！</h2>
+        <div class="game-info">
+          <p><strong>參與玩家:</strong> ${gameData.players ? gameData.players.map(p => p.name).join(', ') : '載入中...'}</p>
+        </div>
+        <div style="margin: 20px 0;">
+          <button class="control-btn" onclick="retryInitialization()">🔧 重新初始化</button>
+          <button class="control-btn" onclick="forceCreateTestInterface()">🧪 強制創建測試界面</button>
+        </div>
+        <div class="game-actions">
+          <button class="leave-btn" onclick="leaveRoom()">離開遊戲</button>
+        </div>
+      </div>
+    `;
       }
     }
+
+    // 重試初始化函數
+    window.retryInitialization = function () {
+      console.log('🔄 重試初始化...');
+      initializationComplete = false;
+
+      if (typeof forceCreateTestInterface === 'function') {
+        forceCreateTestInterface();
+      } else {
+        showMessage('重新載入頁面可能有幫助', 'warning');
+      }
+    };
 
     // 界面切換函數
     function showSection(sectionId) {
@@ -713,104 +719,30 @@
       sections.forEach(section => {
         section.classList.remove('active');
       });
-      
+
       const targetSection = document.getElementById(sectionId);
       if (targetSection) {
         targetSection.classList.add('active');
       }
     }
 
-    // 調試函數
-    window.debugTileSystem = function() {
-      console.log('=== 字母磚系統調試資訊 ===');
-      console.log('SocketClient 載入:', typeof SocketClient !== 'undefined');
-      console.log('TileSystem 載入:', typeof window.TileSystem !== 'undefined');
-      console.log('tileUIManager 載入:', typeof tileUIManager !== 'undefined');
-      console.log('socketClient 實例:', typeof socketClient !== 'undefined');
-      console.log('initializeTileSystemExtension:', typeof initializeTileSystemExtension !== 'undefined');
-      
-      if (typeof socketClient !== 'undefined' && socketClient) {
-        console.log('Socket 連接狀態:', socketClient.isConnected ? socketClient.isConnected() : '未知');
-        console.log('字母磚方法可用:', !!socketClient.requestMyHand);
-      }
-      
-      console.log('初始化狀態:', initializationComplete);
-    };
+    // 基本初始化（頁面載入後立即執行）
+    let basicInitAttempts = 0;
+    function attemptBasicInit() {
+      basicInitAttempts++;
 
-    // 測試手動創建字母磚界面
-    window.createTileUIManually = function() {
-      console.log('🔧 手動創建字母磚界面...');
-      
-      const gameAreaEl = document.getElementById('game-area');
-      if (!gameAreaEl) return;
-      
-      gameAreaEl.innerHTML = `
-        <div class="rummi-game-container">
-          <div class="game-header">
-            <div class="game-info">
-              <h2>🎮 Rummiword 遊戲</h2>
-              <div class="game-stats">
-                <span class="current-player">當前玩家: <strong>測試玩家</strong></span>
-                <span class="round-info">回合: 1</span>
-                <span class="pool-count">剩餘磚塊: <span id="pool-count">98</span></span>
-              </div>
-            </div>
-            <div class="game-actions">
-              <button class="control-btn" onclick="requestMyHand()">🎯 請求手牌</button>
-              <button class="control-btn" onclick="debugTileSystem()">🐛 調試</button>
-              <button class="leave-btn" onclick="leaveRoom()">離開遊戲</button>
-            </div>
-          </div>
-          
-          <div class="my-hand-container">
-            <div class="hand-header">
-              <h3>🎯 我的手牌</h3>
-              <div class="hand-stats">
-                <span id="hand-count">7 張</span>
-                <span id="hand-score">14 分</span>
-              </div>
-            </div>
-            <div id="my-hand" class="hand-tiles">
-              <div class="tile" data-tile-id="test1">
-                <div class="tile-letter">A</div>
-                <div class="tile-points">1</div>
-              </div>
-              <div class="tile" data-tile-id="test2">
-                <div class="tile-letter">B</div>
-                <div class="tile-points">3</div>
-              </div>
-              <div class="tile blank" data-tile-id="test3">
-                <div class="tile-letter">★</div>
-                <div class="tile-points"></div>
-              </div>
-            </div>
-          </div>
-        </div>
-      `;
-      
-      console.log('✅ 手動界面創建完成');
-    };
-
-    // 等待所有組件載入
-    let loadCheckCount = 0;
-    const maxLoadChecks = 50; // 5秒超時
-    
-    function waitForComponents() {
-      loadCheckCount++;
-      
-      if (checkInitialization()) {
-        console.log('✅ 所有組件已載入，進行初始化');
-        forceInitializeTileSystem();
-      } else if (loadCheckCount < maxLoadChecks) {
-        setTimeout(waitForComponents, 100);
+      if (initializeBasicSystem()) {
+        console.log('✅ 基本系統初始化成功');
+      } else if (basicInitAttempts < 20) {
+        // 最多嘗試 20 次，每次間隔 250ms (總共 5 秒)
+        setTimeout(attemptBasicInit, 250);
       } else {
-        console.log('⚠️ 組件載入超時，但仍然嘗試初始化');
-        forceInitializeTileSystem();
+        console.log('⚠️ 基本系統初始化超時，但頁面仍可使用');
       }
     }
-    
-    // 啟動檢查
-    setTimeout(waitForComponents, 1000);
+
+    // 頁面載入後開始初始化
+    setTimeout(attemptBasicInit, 500);
   </script>
 </body>
 
