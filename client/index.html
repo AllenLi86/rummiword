@@ -650,15 +650,20 @@
     <div id="game-messages" class="messages"></div>
   </div>
 
-  <!-- 載入 JavaScript 檔案 - 正確的順序很重要！ -->
-  <script src="socket-client.js"></script>
-  <script src="tile-system.js"></script>
-  <script src="phaser-tile-game.js"></script> <!-- 新增這一行 -->
-  <!-- <script src="game-ui-tiles.js"></script> -->
-  <script src="socket-client-tiles-extension.js"></script>
-  <script src="game-websocket.js"></script>
-  <!-- <script src="test-tile-interface.js"></script> -->
-  <!-- <script src="debug-checker.js"></script> -->
+  <!-- 載入 JavaScript 檔案 - 按新架構順序載入 -->
+  <script src="js/socket-client.js"></script>
+  <script src="js/tile-system.js"></script>
+
+  <!-- Phaser 遊戲系統 -->
+  <script src="phaser/utils/PhaserHelpers.js"></script>
+  <script src="phaser/objects/Tile.js"></script>
+  <script src="phaser/objects/TileHand.js"></script>
+  <script src="phaser/scenes/GameScene.js"></script>
+  <script src="phaser/scenes/UIScene.js"></script>
+  <script src="phaser/PhaserGameManager.js"></script>
+
+  <script src="js/socket-client-tiles-extension.js"></script>
+  <script src="js/game-websocket.js"></script>
 
   <script>
     // 確保初始化函數在所有檔案載入後執行

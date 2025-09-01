@@ -395,9 +395,9 @@ function showSection(sectionId) {
 
 // ========== 遊戲界面函數 ==========
 
-// 開始遊戲界面 - 整合 Phaser.js
+// 開始遊戲界面 - 使用新的 Phaser 架構
 function startGameInterface(gameData) {
-  console.log('🎮 啟動 Phaser 字母磚遊戲界面', gameData);
+  console.log('🎮 啟動重構後的 Phaser 遊戲界面', gameData);
   
   showSection('game-section');
   
@@ -406,23 +406,18 @@ function startGameInterface(gameData) {
   if (gameArea) {
     gameArea.innerHTML = `
       <div class="phaser-game-wrapper">
-        <div id="phaser-game-container" style="width: 100%; max-width: 1200px; margin: 0 auto; border-radius: 10px; overflow: hidden; box-shadow: 0 4px 8px rgba(0,0,0,0.1);"></div>
-        <div class="game-controls-panel" style="margin-top: 20px; text-align: center;">
-          <button class="leave-btn" onclick="leaveRoom()" style="background: #dc3545; color: white; padding: 10px 20px; border: none; border-radius: 5px; cursor: pointer;">
-            離開遊戲
-          </button>
-        </div>
+        <div id="phaser-game-container"></div>
       </div>
     `;
   }
   
-  // 初始化 Phaser 遊戲
+  // 初始化 Phaser 遊戲管理器
   setTimeout(() => {
-    if (typeof initializePhaserTileGame === 'function') {
-      initializePhaserTileGame(gameData, socketClient);
+    if (window.phaserGameManager) {
+      window.phaserGameManager.initialize(gameData, socketClient);
       showMessage('Phaser 字母磚遊戲已啟動！', 'success');
     } else {
-      console.error('❌ Phaser 遊戲系統未載入');
+      console.error('❌ PhaserGameManager 未載入');
       showMessage('遊戲系統載入失敗，請重新整理頁面', 'error');
     }
   }, 500);
