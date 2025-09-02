@@ -1,0 +1,1135 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Rummiword - Phaser 遊戲畫面</title>
+  
+  <!-- Phaser 框架 -->
+  <script src="https://cdn.jsdelivr.net/npm/phaser@3.70.0/dist/phaser.min.js"></script>
+
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      background: #1a1a2e;
+      font-family: 'Arial', sans-serif;
+      overflow: hidden;
+    }
+
+    #game-container {
+      width: 100vw;
+      height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .loading-screen {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 1000;
+      transition: opacity 0.5s ease;
+    }
+
+    .loading-content {
+      text-align: center;
+      color: white;
+    }
+
+    .spinner {
+      width: 50px;
+      height: 50px;
+      border: 4px solid rgba(255, 255, 255, 0.3);
+      border-top: 4px solid white;
+      border-radius: 50%;
+      animation: spin 1s linear infinite;
+      margin: 0 auto 20px;
+    }
+
+    @keyframes spin {
+      0% { transform: rotate(0deg); }
+      100% { transform: rotate(360deg); }
+    }
+  </style>
+</head>
+
+<body>
+  <div id="game-container">
+    <!-- 載入畫面 -->
+    <div class="loading-screen" id="loading-screen">
+      <div class="loading-content">
+        <div class="spinner"></div>
+        <h2>🎮 載入 Rummiword</h2>
+        <p>正在初始化遊戲...</p>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // ========== 全局變量 ==========
+    let game = null;
+    let gameScene = null;
+    
+    // 遊戲狀態
+    const gameState = {
+      currentPlayer: 0,
+      players: [
+        { id: 1, name: '玩家1', hand: [], isCurrentPlayer: true },
+        { id: 2, name: '玩家2', hand: [], isCurrentPlayer: false },
+        { id: 3, name: '玩家3', hand: [], isCurrentPlayer: false },
+        { id: 4, name: '玩家4', hand: [], isCurrentPlayer: false }
+      ],
+      board: [],
+      tilePool: 98,
+      gamePhase: 'playing' // playing, ended
+    };
+
+    // 字母磚配置（基於 Rummikub Word）
+    const TILE_CONFIG = {
+      'A': { count: 9, points: 1 }, 'B': { count: 2, points: 3 }, 'C': { count: 2, points: 3 },
+      'D': { count: 4, points: 2 }, 'E': { count: 12, points: 1 }, 'F': { count: 2, points: 4 },
+      'G': { count: 3, points: 2 }, 'H': { count: 2, points: 4 }, 'I': { count: 9, points: 1 },
+      'J': { count: 1, points: 8 }, 'K': { count: 1, points: 5 }, 'L': { count: 4, points: 1 },
+      'M': { count: 2, points: 3 }, 'N': { count: 6, points: 1 }, 'O': { count: 8, points: 1 },
+      'P': { count: 2, points: 3 }, 'Q': { count: 1, points: 10 }, 'R': { count: 6, points: 1 },
+      'S': { count: 4, points: 1 }, 'T': { count: 6, points: 1 }, 'U': { count: 4, points: 1 },
+      'V': { count: 2, points: 4 }, 'W': { count: 2, points: 4 }, 'X': { count: 1, points: 8 },
+      'Y': { count: 2, points: 4 }, 'Z': { count: 1, points: 10 }, '★': { count: 2, points: 0 }
+    };
+
+    // ========== Phaser 遊戲配置 ==========
+    function initializeGame() {
+      // 計算響應式尺寸
+      const gameSize = calculateGameSize();
+      
+      const config = {
+        type: Phaser.AUTO,
+        width: gameSize.width,
+        height: gameSize.height,
+        parent: 'game-container',
+        backgroundColor: '#0f3460',
+        scale: {
+          mode: Phaser.Scale.FIT,
+          autoCenter: Phaser.Scale.CENTER_BOTH
+        },
+        scene: {
+          preload: preload,
+          create: create,
+          update: update
+        }
+      };
+
+      game = new Phaser.Game(config);
+      
+      // 隱藏載入畫面
+      setTimeout(() => {
+        document.getElementById('loading-screen').style.opacity = '0';
+        setTimeout(() => {
+          document.getElementById('loading-screen').style.display = 'none';
+        }, 500);
+      }, 2000);
+    }
+
+    function calculateGameSize() {
+      const vw = window.innerWidth;
+      const vh = window.innerHeight;
+      
+      let width = 1200;
+      let height = 800;
+      
+      if (vw < 768) {
+        width = Math.min(vw - 20, 800);
+        height = Math.min(vh - 20, 600);
+      } else if (vw < 1024) {
+        width = Math.min(vw - 40, 1000);
+        height = Math.min(vh - 40, 700);
+      } else {
+        const ratio = Math.min(vw / width, vh / height) * 0.95;
+        width = width * ratio;
+        height = height * ratio;
+      }
+      
+      return { width: Math.floor(width), height: Math.floor(height) };
+    }
+
+    // ========== Phaser 場景函數 ==========
+    function preload() {
+      console.log('📦 載入遊戲資源');
+      gameScene = this;
+      
+      // 創建磚塊材質
+      createTileTextures(this);
+      
+      // 創建按鈕材質
+      createButtonTextures(this);
+      
+      // 載入進度顯示
+      const progressBar = this.add.graphics();
+      const progressBox = this.add.graphics();
+      progressBox.fillStyle(0x222222);
+      progressBox.fillRect(this.cameras.main.width / 2 - 160, this.cameras.main.height / 2 - 25, 320, 50);
+      
+      this.load.on('progress', (value) => {
+        progressBar.clear();
+        progressBar.fillStyle(0x00ff88);
+        progressBar.fillRect(this.cameras.main.width / 2 - 150, this.cameras.main.height / 2 - 15, 300 * value, 30);
+      });
+    }
+
+    function create() {
+      console.log('🎨 創建遊戲場景');
+      const scene = this;
+      
+      // 初始化遊戲數據
+      initializeGameData();
+      
+      // 創建遊戲區域
+      createGameAreas(scene);
+      
+      // 創建UI元素
+      createUIElements(scene);
+      
+      // 創建控制按鈕
+      createControlButtons(scene);
+      
+      // 創建玩家手牌
+      createPlayerHands(scene);
+      
+      // 設置事件監聽
+      setupEventListeners(scene);
+      
+      console.log('✅ 遊戲場景創建完成');
+    }
+
+    function update() {
+      // 遊戲更新邏輯
+    }
+
+    // ========== 材質創建 ==========
+    function createTileTextures(scene) {
+      const graphics = scene.add.graphics();
+
+      // 普通磚塊材質
+      graphics.fillGradientStyle(0xffeaa7, 0xffeaa7, 0xfdcb6e, 0xfdcb6e);
+      graphics.fillRoundedRect(0, 0, 60, 60, 8);
+      graphics.lineStyle(2, 0xe17055);
+      graphics.strokeRoundedRect(1, 1, 58, 58, 8);
+      graphics.generateTexture('tile-normal', 60, 60);
+
+      // 萬用磚塊材質
+      graphics.clear();
+      graphics.fillGradientStyle(0xe0e0e0, 0xe0e0e0, 0xc0c0c0, 0xc0c0c0);
+      graphics.fillRoundedRect(0, 0, 60, 60, 8);
+      graphics.lineStyle(2, 0x999999);
+      graphics.strokeRoundedRect(1, 1, 58, 58, 8);
+      graphics.generateTexture('tile-blank', 60, 60);
+
+      // 選中效果材質
+      graphics.clear();
+      graphics.fillStyle(0x007bff, 0.3);
+      graphics.fillRoundedRect(0, 0, 64, 64, 8);
+      graphics.lineStyle(3, 0x007bff);
+      graphics.strokeRoundedRect(2, 2, 60, 60, 8);
+      graphics.generateTexture('tile-selected', 64, 64);
+
+      // 拖拽陰影效果
+      graphics.clear();
+      graphics.fillStyle(0x000000, 0.3);
+      graphics.fillRoundedRect(2, 2, 60, 60, 8);
+      graphics.generateTexture('tile-shadow', 64, 64);
+
+      graphics.destroy();
+    }
+
+    function createButtonTextures(scene) {
+      const graphics = scene.add.graphics();
+      
+      // 主要按鈕
+      graphics.fillGradientStyle(0x007bff, 0x007bff, 0x0056b3, 0x0056b3);
+      graphics.fillRoundedRect(0, 0, 120, 40, 8);
+      graphics.lineStyle(2, 0x0056b3);
+      graphics.strokeRoundedRect(1, 1, 118, 38, 8);
+      graphics.generateTexture('button-primary', 120, 40);
+
+      // 危險按鈕
+      graphics.clear();
+      graphics.fillGradientStyle(0xdc3545, 0xdc3545, 0xc82333, 0xc82333);
+      graphics.fillRoundedRect(0, 0, 120, 40, 8);
+      graphics.lineStyle(2, 0xc82333);
+      graphics.strokeRoundedRect(1, 1, 118, 38, 8);
+      graphics.generateTexture('button-danger', 120, 40);
+
+      // 成功按鈕
+      graphics.clear();
+      graphics.fillGradientStyle(0x28a745, 0x28a745, 0x218838, 0x218838);
+      graphics.fillRoundedRect(0, 0, 120, 40, 8);
+      graphics.lineStyle(2, 0x218838);
+      graphics.strokeRoundedRect(1, 1, 118, 38, 8);
+      graphics.generateTexture('button-success', 120, 40);
+
+      graphics.destroy();
+    }
+
+    // ========== 遊戲區域創建 ==========
+    function createGameAreas(scene) {
+      const { width, height } = scene.cameras.main;
+      
+      // 背景漸層
+      const backgroundGraphics = scene.add.graphics();
+      backgroundGraphics.fillGradientStyle(0x0f3460, 0x16213e, 0x0e2954, 0x533483);
+      backgroundGraphics.fillRect(0, 0, width, height);
+      
+      // 主要放牌區域（中央）
+      const boardWidth = Math.min(width * 0.7, 800);
+      const boardHeight = Math.min(height * 0.4, 300);
+      const boardX = width / 2;
+      const boardY = height * 0.35;
+      
+      scene.boardArea = scene.add.graphics();
+      scene.boardArea.fillStyle(0x2c5aa0, 0.3);
+      scene.boardArea.fillRoundedRect(
+        boardX - boardWidth/2, 
+        boardY - boardHeight/2, 
+        boardWidth, 
+        boardHeight, 
+        15
+      );
+      scene.boardArea.lineStyle(3, 0x4682b4);
+      scene.boardArea.strokeRoundedRect(
+        boardX - boardWidth/2, 
+        boardY - boardY/2, 
+        boardWidth, 
+        boardHeight, 
+        15
+      );
+      
+      // 放牌區域標題
+      scene.add.text(boardX, boardY - boardHeight/2 - 30, '🎯 公共放牌區域', {
+        fontSize: width < 768 ? '18px' : '24px',
+        fontFamily: 'Arial',
+        color: '#ffffff',
+        fontStyle: 'bold'
+      }).setOrigin(0.5);
+      
+      // 存储區域資訊
+      scene.boardZone = {
+        x: boardX - boardWidth/2,
+        y: boardY - boardHeight/2,
+        width: boardWidth,
+        height: boardHeight,
+        centerX: boardX,
+        centerY: boardY
+      };
+      
+      // 創建玩家手牌區域
+      createHandAreas(scene);
+    }
+
+    function createHandAreas(scene) {
+      const { width, height } = scene.cameras.main;
+      
+      // 當前玩家手牌區域（底部）
+      const handWidth = Math.min(width * 0.9, 900);
+      const handHeight = 100;
+      const handX = width / 2;
+      const handY = height - handHeight/2 - 20;
+      
+      scene.handArea = scene.add.graphics();
+      scene.handArea.fillStyle(0x1e3a8a, 0.4);
+      scene.handArea.fillRoundedRect(
+        handX - handWidth/2, 
+        handY - handHeight/2, 
+        handWidth, 
+        handHeight, 
+        10
+      );
+      scene.handArea.lineStyle(2, 0x3b82f6);
+      scene.handArea.strokeRoundedRect(
+        handX - handWidth/2, 
+        handY - handHeight/2, 
+        handWidth, 
+        handHeight, 
+        10
+      );
+      
+      // 手牌標題
+      scene.add.text(handX - handWidth/2 + 20, handY - handHeight/2 - 25, '🎯 我的手牌', {
+        fontSize: width < 768 ? '14px' : '18px',
+        fontFamily: 'Arial',
+        color: '#ffffff',
+        fontStyle: 'bold'
+      }).setOrigin(0, 0.5);
+      
+      // 存储手牌區域資訊
+      scene.handZone = {
+        x: handX - handWidth/2,
+        y: handY - handHeight/2,
+        width: handWidth,
+        height: handHeight,
+        centerX: handX,
+        centerY: handY
+      };
+
+      // 其他玩家的手牌預覽區域
+      createOtherPlayersAreas(scene);
+    }
+
+    function createOtherPlayersAreas(scene) {
+      const { width, height } = scene.cameras.main;
+      const isMobile = width < 768;
+      
+      // 其他玩家位置：上方、左側、右側
+      const otherPlayersPositions = [
+        { x: width / 2, y: 60, anchor: 'top', name: '玩家2' },
+        { x: 80, y: height / 2, anchor: 'left', name: '玩家3' },
+        { x: width - 80, y: height / 2, anchor: 'right', name: '玩家4' }
+      ];
+      
+      scene.otherPlayersAreas = [];
+      
+      otherPlayersPositions.forEach((pos, index) => {
+        // 根據位置調整手牌預覽大小
+        let cardWidth = isMobile ? 200 : 300;
+        let cardHeight = isMobile ? 30 : 40;
+        
+        if (pos.anchor === 'left' || pos.anchor === 'right') {
+          cardWidth = isMobile ? 30 : 40;
+          cardHeight = isMobile ? 150 : 200;
+        }
+        
+        // 玩家手牌背景
+        const playerArea = scene.add.graphics();
+        playerArea.fillStyle(0x1f2937, 0.6);
+        playerArea.fillRoundedRect(
+          pos.x - cardWidth/2, 
+          pos.y - cardHeight/2, 
+          cardWidth, 
+          cardHeight, 
+          8
+        );
+        playerArea.lineStyle(1, 0x6b7280);
+        playerArea.strokeRoundedRect(
+          pos.x - cardWidth/2, 
+          pos.y - cardHeight/2, 
+          cardWidth, 
+          cardHeight, 
+          8
+        );
+        
+        // 玩家名稱
+        const nameY = pos.anchor === 'top' ? pos.y - cardHeight/2 - 20 : 
+                     pos.anchor === 'left' ? pos.y - cardHeight/2 - 20 :
+                     pos.y - cardHeight/2 - 20;
+        
+        const playerName = scene.add.text(pos.x, nameY, pos.name, {
+          fontSize: isMobile ? '12px' : '14px',
+          fontFamily: 'Arial',
+          color: '#e5e7eb',
+          fontStyle: 'bold'
+        }).setOrigin(0.5);
+        
+        // 手牌數量顯示
+        const tileCount = scene.add.text(pos.x, pos.y, '7', {
+          fontSize: isMobile ? '16px' : '20px',
+          fontFamily: 'Arial',
+          color: '#ffffff',
+          fontStyle: 'bold'
+        }).setOrigin(0.5);
+        
+        scene.otherPlayersAreas.push({
+          area: playerArea,
+          name: playerName,
+          count: tileCount,
+          position: pos
+        });
+      });
+    }
+
+    // ========== UI 元素創建 ==========
+    function createUIElements(scene) {
+      const { width, height } = scene.cameras.main;
+      const isMobile = width < 768;
+      
+      // 遊戲標題
+      scene.add.text(width / 2, 30, '🎮 Rummiword', {
+        fontSize: isMobile ? '20px' : '28px',
+        fontFamily: 'Arial',
+        color: '#ffffff',
+        fontStyle: 'bold'
+      }).setOrigin(0.5);
+      
+      // 遊戲資訊面板
+      const infoPanel = scene.add.graphics();
+      infoPanel.fillStyle(0x1f2937, 0.8);
+      infoPanel.fillRoundedRect(width - 200, 10, 180, 120, 8);
+      infoPanel.lineStyle(1, 0x4b5563);
+      infoPanel.strokeRoundedRect(width - 200, 10, 180, 120, 8);
+      
+      // 遊戲資訊文字
+      scene.tilePoolText = scene.add.text(width - 190, 25, '🎲 剩餘磚塊: 98', {
+        fontSize: '14px',
+        fontFamily: 'Arial',
+        color: '#ffffff'
+      });
+      
+      scene.currentPlayerText = scene.add.text(width - 190, 45, '👤 當前玩家: 玩家1', {
+        fontSize: '14px',
+        fontFamily: 'Arial',
+        color: '#10b981'
+      });
+      
+      scene.turnCountText = scene.add.text(width - 190, 65, '🔄 回合數: 1', {
+        fontSize: '14px',
+        fontFamily: 'Arial',
+        color: '#f59e0b'
+      });
+      
+      scene.handCountText = scene.add.text(width - 190, 85, '🎯 手牌: 7張', {
+        fontSize: '14px',
+        fontFamily: 'Arial',
+        color: '#3b82f6'
+      });
+      
+      scene.scoreText = scene.add.text(width - 190, 105, '⭐ 分數: 0', {
+        fontSize: '14px',
+        fontFamily: 'Arial',
+        color: '#ef4444'
+      });
+    }
+
+    function createControlButtons(scene) {
+      const { width, height } = scene.cameras.main;
+      const isMobile = width < 768;
+      
+      // 按鈕位置計算
+      const buttonY = height - 30;
+      const buttonSpacing = isMobile ? 130 : 140;
+      const startX = width / 2 - buttonSpacing;
+      
+      // 抽磚按鈕
+      scene.drawTileBtn = scene.add.image(startX, buttonY, 'button-primary')
+        .setInteractive({ cursor: 'pointer' })
+        .setScale(isMobile ? 0.8 : 1);
+      
+      const drawBtnText = scene.add.text(startX, buttonY, '🎲 抽磚', {
+        fontSize: isMobile ? '12px' : '14px',
+        fontFamily: 'Arial',
+        color: '#ffffff',
+        fontStyle: 'bold'
+      }).setOrigin(0.5);
+      
+      // 結束回合按鈕
+      scene.endTurnBtn = scene.add.image(startX + buttonSpacing, buttonY, 'button-danger')
+        .setInteractive({ cursor: 'pointer' })
+        .setScale(isMobile ? 0.8 : 1);
+      
+      const endTurnText = scene.add.text(startX + buttonSpacing, buttonY, '⏭️ 結束回合', {
+        fontSize: isMobile ? '12px' : '14px',
+        fontFamily: 'Arial',
+        color: '#ffffff',
+        fontStyle: 'bold'
+      }).setOrigin(0.5);
+      
+      // 檢查單詞按鈕
+      scene.checkWordBtn = scene.add.image(startX + buttonSpacing * 2, buttonY, 'button-success')
+        .setInteractive({ cursor: 'pointer' })
+        .setScale(isMobile ? 0.8 : 1);
+      
+      const checkWordText = scene.add.text(startX + buttonSpacing * 2, buttonY, '✅ 檢查', {
+        fontSize: isMobile ? '12px' : '14px',
+        fontFamily: 'Arial',
+        color: '#ffffff',
+        fontStyle: 'bold'
+      }).setOrigin(0.5);
+      
+      // 按鈕事件
+      scene.drawTileBtn.on('pointerdown', () => drawTile(scene));
+      scene.endTurnBtn.on('pointerdown', () => endTurn(scene));
+      scene.checkWordBtn.on('pointerdown', () => checkWords(scene));
+      
+      // 懸停效果
+      [scene.drawTileBtn, scene.endTurnBtn, scene.checkWordBtn].forEach(btn => {
+        btn.on('pointerover', () => btn.setScale((isMobile ? 0.8 : 1) * 1.05));
+        btn.on('pointerout', () => btn.setScale(isMobile ? 0.8 : 1));
+      });
+    }
+
+    // ========== 字母磚創建和管理 ==========
+    function createPlayerHands(scene) {
+      scene.playerTiles = [];
+      scene.selectedTiles = [];
+      
+      // 為當前玩家創建初始手牌
+      const startingHand = generateRandomHand(7);
+      gameState.players[0].hand = startingHand;
+      
+      renderPlayerHand(scene);
+    }
+
+    function generateRandomHand(count) {
+      const hand = [];
+      const letters = Object.keys(TILE_CONFIG);
+      
+      for (let i = 0; i < count; i++) {
+        const randomLetter = letters[Math.floor(Math.random() * letters.length)];
+        const config = TILE_CONFIG[randomLetter];
+        
+        hand.push({
+          id: `tile_${Date.now()}_${i}`,
+          letter: randomLetter,
+          points: config.points,
+          isBlank: randomLetter === '★'
+        });
+      }
+      
+      return hand;
+    }
+
+    function renderPlayerHand(scene) {
+      // 清除現有磚塊
+      scene.playerTiles.forEach(tile => tile.destroy());
+      scene.playerTiles = [];
+      
+      const hand = gameState.players[0].hand;
+      if (hand.length === 0) return;
+      
+      const { centerX, centerY, width } = scene.handZone;
+      const tileSpacing = Math.min((width - 40) / hand.length, 70);
+      const startX = centerX - ((hand.length - 1) * tileSpacing) / 2;
+      
+      hand.forEach((tileData, index) => {
+        const tile = createTileSprite(scene, startX + index * tileSpacing, centerY, tileData);
+        scene.playerTiles.push(tile);
+      });
+      
+      // 更新手牌數量顯示
+      scene.handCountText.setText(`🎯 手牌: ${hand.length}張`);
+    }
+
+    function createTileSprite(scene, x, y, tileData) {
+      const isBlank = tileData.isBlank;
+      const texture = isBlank ? 'tile-blank' : 'tile-normal';
+      
+      // 創建磚塊容器
+      const tileContainer = scene.add.container(x, y);
+      
+      // 背景
+      const background = scene.add.image(0, 0, texture);
+      tileContainer.add(background);
+      
+      // 字母
+      const letterText = scene.add.text(0, -5, tileData.letter, {
+        fontSize: isBlank ? '20px' : '24px',
+        fontFamily: 'Arial',
+        color: isBlank ? '#666666' : '#2d3748',
+        fontStyle: 'bold'
+      }).setOrigin(0.5);
+      tileContainer.add(letterText);
+      
+      // 分數
+      if (!isBlank) {
+        const pointsText = scene.add.text(18, 18, tileData.points.toString(), {
+          fontSize: '12px',
+          fontFamily: 'Arial',
+          color: '#4a5568'
+        }).setOrigin(0.5);
+        tileContainer.add(pointsText);
+      }
+      
+      // 設置互動
+      tileContainer.setSize(60, 60);
+      tileContainer.setInteractive({ cursor: 'pointer', draggable: true });
+      
+      // 存儲磚塊數據
+      tileContainer.tileData = tileData;
+      tileContainer.isSelected = false;
+      tileContainer.originalX = x;
+      tileContainer.originalY = y;
+      
+      // 點擊選中
+      tileContainer.on('pointerdown', () => toggleTileSelection(scene, tileContainer));
+      
+      // 拖拽事件
+      tileContainer.on('dragstart', () => startTileDrag(scene, tileContainer));
+      tileContainer.on('drag', (pointer, dragX, dragY) => dragTile(scene, tileContainer, dragX, dragY));
+      tileContainer.on('dragend', () => endTileDrag(scene, tileContainer));
+      
+      return tileContainer;
+    }
+
+    // ========== 磚塊互動邏輯 ==========
+    function toggleTileSelection(scene, tile) {
+      if (tile.isSelected) {
+        deselectTile(scene, tile);
+      } else {
+        selectTile(scene, tile);
+      }
+    }
+
+    function selectTile(scene, tile) {
+      if (tile.isSelected) return;
+      
+      tile.isSelected = true;
+      scene.selectedTiles.push(tile);
+      
+      // 視覺效果
+      const selectedEffect = scene.add.image(0, 0, 'tile-selected');
+      tile.addAt(selectedEffect, 0);
+      tile.selectedEffect = selectedEffect;
+      
+      // 向上移動
+      scene.tweens.add({
+        targets: tile,
+        y: tile.originalY - 15,
+        duration: 200,
+        ease: 'Power2'
+      });
+      
+      console.log('選中磚塊:', tile.tileData.letter);
+    }
+
+    function deselectTile(scene, tile) {
+      if (!tile.isSelected) return;
+      
+      tile.isSelected = false;
+      const index = scene.selectedTiles.indexOf(tile);
+      if (index > -1) {
+        scene.selectedTiles.splice(index, 1);
+      }
+      
+      // 移除視覺效果
+      if (tile.selectedEffect) {
+        tile.selectedEffect.destroy();
+        tile.selectedEffect = null;
+      }
+      
+      // 回到原位
+      scene.tweens.add({
+        targets: tile,
+        y: tile.originalY,
+        duration: 200,
+        ease: 'Power2'
+      });
+      
+      console.log('取消選中磚塊:', tile.tileData.letter);
+    }
+
+    function startTileDrag(scene, tile) {
+      tile.setScale(1.1);
+      tile.setDepth(1000);
+      tile.setAlpha(0.8);
+      
+      // 創建拖拽陰影
+      if (!tile.dragShadow) {
+        tile.dragShadow = scene.add.image(tile.originalX, tile.originalY, 'tile-shadow');
+        tile.dragShadow.setDepth(1);
+      }
+    }
+
+    function dragTile(scene, tile, dragX, dragY) {
+      tile.x = dragX;
+      tile.y = dragY;
+    }
+
+    function endTileDrag(scene, tile) {
+      tile.setScale(1);
+      tile.setDepth(10);
+      tile.setAlpha(1);
+      
+      // 移除陰影
+      if (tile.dragShadow) {
+        tile.dragShadow.destroy();
+        tile.dragShadow = null;
+      }
+      
+      // 檢查是否拖拽到放牌區域
+      if (isInBoardArea(tile.x, tile.y, scene.boardZone)) {
+        placeTileOnBoard(scene, tile);
+      } else {
+        // 回到原位
+        scene.tweens.add({
+          targets: tile,
+          x: tile.originalX,
+          y: tile.originalY,
+          duration: 300,
+          ease: 'Power2'
+        });
+      }
+    }
+
+    function isInBoardArea(x, y, boardZone) {
+      return x >= boardZone.x && 
+             x <= boardZone.x + boardZone.width && 
+             y >= boardZone.y && 
+             y <= boardZone.y + boardZone.height;
+    }
+
+    function placeTileOnBoard(scene, tile) {
+      console.log('放置磚塊到棋盤:', tile.tileData.letter);
+      
+      // 找到棋盤上合適的位置
+      const boardPosition = findBoardPosition(scene, tile);
+      
+      // 移動到棋盤位置
+      scene.tweens.add({
+        targets: tile,
+        x: boardPosition.x,
+        y: boardPosition.y,
+        duration: 300,
+        ease: 'Power2',
+        onComplete: () => {
+          // 更新磚塊狀態
+          tile.isOnBoard = true;
+          tile.boardX = boardPosition.x;
+          tile.boardY = boardPosition.y;
+          
+          // 從手牌中移除
+          removeFromHand(scene, tile);
+          
+          // 添加到棋盤
+          addToBoard(scene, tile);
+        }
+      });
+    }
+
+    function findBoardPosition(scene, tile) {
+      const { centerX, centerY } = scene.boardZone;
+      
+      // 簡單的網格佈局（可以後續改進）
+      const boardTilesCount = scene.boardTiles ? scene.boardTiles.length : 0;
+      const spacing = 70;
+      const tilesPerRow = 8;
+      
+      const row = Math.floor(boardTilesCount / tilesPerRow);
+      const col = boardTilesCount % tilesPerRow;
+      
+      const startX = centerX - (tilesPerRow - 1) * spacing / 2;
+      const startY = centerY - 50;
+      
+      return {
+        x: startX + col * spacing,
+        y: startY + row * spacing
+      };
+    }
+
+    function removeFromHand(scene, tile) {
+      // 從玩家手牌數據中移除
+      const hand = gameState.players[0].hand;
+      const index = hand.findIndex(t => t.id === tile.tileData.id);
+      if (index > -1) {
+        hand.splice(index, 1);
+      }
+      
+      // 從場景磚塊數組中移除
+      const tileIndex = scene.playerTiles.indexOf(tile);
+      if (tileIndex > -1) {
+        scene.playerTiles.splice(tileIndex, 1);
+      }
+      
+      // 重新排列手牌
+      rearrangeHand(scene);
+    }
+
+    function addToBoard(scene, tile) {
+      if (!scene.boardTiles) {
+        scene.boardTiles = [];
+      }
+      
+      scene.boardTiles.push(tile);
+      gameState.board.push(tile.tileData);
+      
+      console.log('磚塊已添加到棋盤，當前棋盤磚塊數:', scene.boardTiles.length);
+    }
+
+    function rearrangeHand(scene) {
+      const hand = gameState.players[0].hand;
+      const { centerX, centerY, width } = scene.handZone;
+      
+      if (hand.length === 0) return;
+      
+      const tileSpacing = Math.min((width - 40) / hand.length, 70);
+      const startX = centerX - ((hand.length - 1) * tileSpacing) / 2;
+      
+      scene.playerTiles.forEach((tile, index) => {
+        const newX = startX + index * tileSpacing;
+        tile.originalX = newX;
+        
+        scene.tweens.add({
+          targets: tile,
+          x: newX,
+          duration: 300,
+          ease: 'Power2'
+        });
+      });
+      
+      // 更新手牌數量顯示
+      scene.handCountText.setText(`🎯 手牌: ${hand.length}張`);
+    }
+
+    // ========== 遊戲控制函數 ==========
+    function drawTile(scene) {
+      console.log('🎲 玩家抽磚');
+      
+      if (gameState.tilePool <= 0) {
+        showMessage(scene, '磚塊池已空！', 'warning');
+        return;
+      }
+      
+      // 生成新磚塊
+      const newTile = generateRandomTile();
+      gameState.players[0].hand.push(newTile);
+      gameState.tilePool--;
+      
+      // 創建新磚塊視覺效果
+      const hand = gameState.players[0].hand;
+      const { centerX, centerY, width } = scene.handZone;
+      const tileSpacing = Math.min((width - 40) / hand.length, 70);
+      const newX = centerX + ((hand.length - 1) * tileSpacing) / 2;
+      
+      const tile = createTileSprite(scene, newX, centerY - 100, newTile);
+      scene.playerTiles.push(tile);
+      
+      // 動畫效果
+      scene.tweens.add({
+        targets: tile,
+        y: centerY,
+        duration: 500,
+        ease: 'Bounce.easeOut'
+      });
+      
+      // 重新排列手牌
+      setTimeout(() => rearrangeHand(scene), 500);
+      
+      // 更新UI
+      scene.tilePoolText.setText(`🎲 剩餘磚塊: ${gameState.tilePool}`);
+      
+      showMessage(scene, `抽到: ${newTile.letter}`, 'success');
+    }
+
+    function generateRandomTile() {
+      const letters = Object.keys(TILE_CONFIG);
+      const randomLetter = letters[Math.floor(Math.random() * letters.length)];
+      const config = TILE_CONFIG[randomLetter];
+      
+      return {
+        id: `tile_${Date.now()}_${Math.random()}`,
+        letter: randomLetter,
+        points: config.points,
+        isBlank: randomLetter === '★'
+      };
+    }
+
+    function endTurn(scene) {
+      console.log('⏭️ 結束回合');
+      
+      // 清除選中狀態
+      scene.selectedTiles.forEach(tile => deselectTile(scene, tile));
+      
+      // 切換到下一個玩家
+      gameState.currentPlayer = (gameState.currentPlayer + 1) % 4;
+      const currentPlayerName = gameState.players[gameState.currentPlayer].name;
+      
+      scene.currentPlayerText.setText(`👤 當前玩家: ${currentPlayerName}`);
+      
+      // 如果輪到玩家1，增加回合數
+      if (gameState.currentPlayer === 0) {
+        const currentTurn = parseInt(scene.turnCountText.text.split(': ')[1]) + 1;
+        scene.turnCountText.setText(`🔄 回合數: ${currentTurn}`);
+      }
+      
+      showMessage(scene, `輪到 ${currentPlayerName}`, 'info');
+    }
+
+    function checkWords(scene) {
+      console.log('✅ 檢查單詞');
+      
+      if (scene.boardTiles.length === 0) {
+        showMessage(scene, '棋盤上沒有磚塊！', 'warning');
+        return;
+      }
+      
+      // 收集棋盤上的字母
+      const letters = scene.boardTiles.map(tile => tile.tileData.letter).join('');
+      
+      // 簡單的單詞檢查（實際遊戲中會連接字典API）
+      const isValidWord = checkWordValidity(letters);
+      
+      if (isValidWord) {
+        const score = calculateWordScore(scene.boardTiles);
+        showMessage(scene, `有效單詞: ${letters} (+${score}分)`, 'success');
+        
+        // 更新分數
+        const currentScore = parseInt(scene.scoreText.text.split(': ')[1]);
+        scene.scoreText.setText(`⭐ 分數: ${currentScore + score}`);
+      } else {
+        showMessage(scene, `無效單詞: ${letters}`, 'error');
+      }
+    }
+
+    function checkWordValidity(word) {
+      // 簡化的單詞檢查：長度大於2就視為有效
+      // 實際實現會連接字典API
+      const validWords = ['CAT', 'DOG', 'WORD', 'GAME', 'TEST', 'PLAY', 'TILE', 'CARD'];
+      return word.length >= 3 || validWords.includes(word.toUpperCase());
+    }
+
+    function calculateWordScore(tiles) {
+      return tiles.reduce((score, tile) => score + tile.tileData.points, 0);
+    }
+
+    // ========== 訊息系統 ==========
+    function showMessage(scene, text, type = 'info') {
+      const { width } = scene.cameras.main;
+      
+      // 移除舊訊息
+      if (scene.currentMessage) {
+        scene.currentMessage.destroy();
+      }
+      
+      // 訊息顏色
+      const colors = {
+        success: 0x10b981,
+        error: 0xef4444,
+        warning: 0xf59e0b,
+        info: 0x3b82f6
+      };
+      
+      const color = colors[type] || colors.info;
+      
+      // 創建訊息背景
+      const messageGraphics = scene.add.graphics();
+      messageGraphics.fillStyle(color, 0.9);
+      messageGraphics.fillRoundedRect(width/2 - 150, 150, 300, 60, 10);
+      messageGraphics.lineStyle(2, color);
+      messageGraphics.strokeRoundedRect(width/2 - 150, 150, 300, 60, 10);
+      
+      // 創建訊息文字
+      const messageText = scene.add.text(width/2, 180, text, {
+        fontSize: '16px',
+        fontFamily: 'Arial',
+        color: '#ffffff',
+        fontStyle: 'bold',
+        align: 'center',
+        wordWrap: { width: 280 }
+      }).setOrigin(0.5);
+      
+      // 組合訊息
+      scene.currentMessage = scene.add.container(0, 0, [messageGraphics, messageText]);
+      scene.currentMessage.setDepth(2000);
+      
+      // 淡入動畫
+      scene.currentMessage.setAlpha(0);
+      scene.tweens.add({
+        targets: scene.currentMessage,
+        alpha: 1,
+        duration: 300,
+        ease: 'Power2'
+      });
+      
+      // 自動消失
+      scene.time.delayedCall(3000, () => {
+        if (scene.currentMessage) {
+          scene.tweens.add({
+            targets: scene.currentMessage,
+            alpha: 0,
+            duration: 300,
+            ease: 'Power2',
+            onComplete: () => {
+              if (scene.currentMessage) {
+                scene.currentMessage.destroy();
+                scene.currentMessage = null;
+              }
+            }
+          });
+        }
+      });
+      
+      console.log(`訊息 [${type}]: ${text}`);
+    }
+
+    // ========== 事件監聽 ==========
+    function setupEventListeners(scene) {
+      // 鍵盤事件
+      const cursors = scene.input.keyboard.createCursorKeys();
+      
+      // 快捷鍵
+      scene.input.keyboard.on('keydown-D', () => drawTile(scene));
+      scene.input.keyboard.on('keydown-E', () => endTurn(scene));
+      scene.input.keyboard.on('keydown-C', () => checkWords(scene));
+      scene.input.keyboard.on('keydown-ESC', () => {
+        // 清除所有選中
+        scene.selectedTiles.forEach(tile => deselectTile(scene, tile));
+      });
+      
+      console.log('⌨️ 快捷鍵設置完成: D(抽磚), E(結束回合), C(檢查), ESC(清除選中)');
+    }
+
+    // ========== 遊戲數據初始化 ==========
+    function initializeGameData() {
+      console.log('🎮 初始化遊戲數據');
+      
+      // 設置玩家名稱（實際遊戲中從服務器獲取）
+      gameState.players = [
+        { id: 1, name: '你', hand: [], isCurrentPlayer: true },
+        { id: 2, name: '玩家2', hand: [], isCurrentPlayer: false },
+        { id: 3, name: '玩家3', hand: [], isCurrentPlayer: false },
+        { id: 4, name: '玩家4', hand: [], isCurrentPlayer: false }
+      ];
+      
+      console.log('✅ 遊戲數據初始化完成');
+    }
+
+    // ========== 響應式處理 ==========
+    window.addEventListener('resize', () => {
+      if (game) {
+        setTimeout(() => {
+          const newSize = calculateGameSize();
+          game.scale.resize(newSize.width, newSize.height);
+          console.log(`📐 視窗調整，新遊戲尺寸: ${newSize.width}x${newSize.height}`);
+        }, 100);
+      }
+    });
+
+    window.addEventListener('orientationchange', () => {
+      setTimeout(() => {
+        if (game) {
+          const newSize = calculateGameSize();
+          game.scale.resize(newSize.width, newSize.height);
+          console.log('🔄 螢幕方向變化，重新計算遊戲尺寸');
+        }
+      }, 500);
+    });
+
+    // ========== 初始化遊戲 ==========
+    document.addEventListener('DOMContentLoaded', () => {
+      console.log('🚀 開始載入 Rummiword Phaser 遊戲');
+      initializeGame();
+    });
+
+    // ========== 調試函數 ==========
+    window.debugGame = () => {
+      console.log('🔧 遊戲狀態調試資訊:');
+      console.log('遊戲狀態:', gameState);
+      console.log('場景物件:', gameScene);
+      console.log('選中磚塊:', gameScene?.selectedTiles?.length || 0);
+      console.log('棋盤磚塊:', gameScene?.boardTiles?.length || 0);
+    };
+
+    console.log('✅ Rummiword Phaser 遊戲腳本載入完成');
+    console.log('📋 快捷鍵說明: D(抽磚), E(結束回合), C(檢查單詞), ESC(清除選中)');
+    console.log('🔧 調試命令: debugGame() - 查看遊戲狀態');
+  </script>
+</body>
+</html>

@@ -1,0 +1,1172 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Rummiword - 分離式架構測試</title>
+  <link rel="icon" href="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8/5+hHgAHggJ/PchI7wAAAABJRU5ErkJggg==" type="image/png">
+  
+  <!-- Socket.IO 和 Phaser -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.7.4/socket.io.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/phaser@3.70.0/dist/phaser.min.js"></script>
+
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: 'Arial', sans-serif;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      min-height: 100vh;
+      overflow-x: hidden;
+    }
+
+    /* ========== 房間系統樣式 ========== */
+    .room-system {
+      padding: 20px;
+      transition: all 0.5s ease-in-out;
+    }
+
+    .room-system.hidden {
+      opacity: 0;
+      transform: scale(0.95);
+      pointer-events: none;
+    }
+
+    .container {
+      max-width: 900px;
+      margin: 0 auto;
+      background: rgba(255, 255, 255, 0.95);
+      border-radius: 15px;
+      padding: 30px;
+      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+      backdrop-filter: blur(10px);
+    }
+
+    h1 {
+      text-align: center;
+      color: #333;
+      margin-bottom: 30px;
+      font-size: clamp(1.5rem, 4vw, 2rem);
+    }
+
+    /* 連接狀態 */
+    .connection-status {
+      text-align: center;
+      padding: 12px;
+      border-radius: 8px;
+      margin-bottom: 20px;
+      font-weight: bold;
+      transition: all 0.3s ease;
+    }
+
+    .connection-status.success {
+      background: linear-gradient(135deg, #d4edda, #c3e6cb);
+      color: #155724;
+      border: 1px solid #c3e6cb;
+    }
+
+    .connection-status.error {
+      background: linear-gradient(135deg, #f8d7da, #f1b0b7);
+      color: #721c24;
+      border: 1px solid #f1b0b7;
+    }
+
+    .connection-status.info {
+      background: linear-gradient(135deg, #d1ecf1, #b8daff);
+      color: #0c5460;
+      border: 1px solid #b8daff;
+    }
+
+    /* 登入區段 */
+    .login-section {
+      text-align: center;
+      padding: 40px 0;
+    }
+
+    .login-section h2 {
+      margin-bottom: 30px;
+      color: #495057;
+    }
+
+    .login-section input {
+      padding: 15px 20px;
+      border: 2px solid #ddd;
+      border-radius: 10px;
+      font-size: 16px;
+      margin: 10px;
+      width: min(300px, 80%);
+      transition: border-color 0.3s ease;
+    }
+
+    .login-section input:focus {
+      outline: none;
+      border-color: #007bff;
+      box-shadow: 0 0 0 3px rgba(0, 123, 255, 0.1);
+    }
+
+    .login-section button {
+      padding: 15px 30px;
+      background: linear-gradient(135deg, #007bff, #0056b3);
+      color: white;
+      border: none;
+      border-radius: 10px;
+      font-size: 16px;
+      cursor: pointer;
+      margin: 10px;
+      transition: all 0.3s ease;
+      font-weight: bold;
+    }
+
+    .login-section button:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 5px 15px rgba(0, 123, 255, 0.3);
+    }
+
+    /* 大廳區段 */
+    .lobby-section {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 30px;
+      margin-top: 20px;
+    }
+
+    @media (min-width: 768px) {
+      .lobby-section {
+        grid-template-columns: 2fr 1fr;
+      }
+    }
+
+    .rooms-list, .create-room {
+      background: rgba(248, 249, 250, 0.9);
+      padding: 25px;
+      border-radius: 15px;
+      border: 1px solid rgba(222, 226, 230, 0.6);
+      backdrop-filter: blur(5px);
+    }
+
+    .rooms-list h3, .create-room h3 {
+      margin-bottom: 20px;
+      color: #495057;
+      font-size: 1.2em;
+    }
+
+    .room-card {
+      background: rgba(255, 255, 255, 0.9);
+      padding: 20px;
+      margin: 15px 0;
+      border-radius: 12px;
+      border: 2px solid transparent;
+      cursor: pointer;
+      transition: all 0.3s ease;
+      backdrop-filter: blur(5px);
+    }
+
+    .room-card:hover {
+      border-color: #007bff;
+      transform: translateY(-3px);
+      box-shadow: 0 8px 25px rgba(0, 123, 255, 0.15);
+    }
+
+    .room-name {
+      font-weight: bold;
+      font-size: 1.1em;
+      margin-bottom: 8px;
+      color: #333;
+    }
+
+    .room-info {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 12px;
+      flex-wrap: wrap;
+      gap: 10px;
+    }
+
+    .players-count, .room-status {
+      padding: 4px 12px;
+      border-radius: 15px;
+      font-size: 0.9em;
+      font-weight: bold;
+    }
+
+    .players-count {
+      background: linear-gradient(135deg, #007bff, #0056b3);
+      color: white;
+    }
+
+    .room-status.waiting {
+      background: linear-gradient(135deg, #28a745, #20c997);
+      color: white;
+    }
+
+    .join-btn {
+      width: 100%;
+      padding: 12px;
+      background: linear-gradient(135deg, #28a745, #20c997);
+      color: white;
+      border: none;
+      border-radius: 8px;
+      cursor: pointer;
+      font-weight: bold;
+      transition: all 0.3s ease;
+    }
+
+    .join-btn:hover {
+      transform: translateY(-1px);
+      box-shadow: 0 4px 12px rgba(40, 167, 69, 0.3);
+    }
+
+    /* 測試控制面板 */
+    .test-controls {
+      margin-top: 30px;
+      padding: 20px;
+      background: rgba(255, 248, 220, 0.9);
+      border-radius: 10px;
+      border: 2px solid #ffc107;
+      text-align: center;
+    }
+
+    .test-controls h3 {
+      color: #856404;
+      margin-bottom: 15px;
+    }
+
+    .test-btn {
+      padding: 12px 25px;
+      background: linear-gradient(135deg, #ffc107, #e0a800);
+      color: #212529;
+      border: none;
+      border-radius: 8px;
+      cursor: pointer;
+      margin: 5px;
+      font-weight: bold;
+      transition: all 0.3s ease;
+    }
+
+    .test-btn:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 4px 12px rgba(255, 193, 7, 0.3);
+    }
+
+    /* ========== 全屏Phaser遊戲樣式 ========== */
+    .game-overlay {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100vw;
+      height: 100vh;
+      background: #000;
+      z-index: 9999;
+      opacity: 0;
+      visibility: hidden;
+      transition: all 0.5s ease-in-out;
+    }
+
+    .game-overlay.active {
+      opacity: 1;
+      visibility: visible;
+    }
+
+    .game-container {
+      position: relative;
+      width: 100%;
+      height: 100%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    #phaser-game {
+      max-width: 100vw;
+      max-height: 100vh;
+    }
+
+    .game-ui {
+      position: absolute;
+      top: 20px;
+      right: 20px;
+      z-index: 10000;
+      display: flex;
+      gap: 10px;
+    }
+
+    .game-ui button {
+      padding: 10px 15px;
+      background: rgba(0, 0, 0, 0.7);
+      color: white;
+      border: none;
+      border-radius: 5px;
+      cursor: pointer;
+      font-size: 14px;
+      backdrop-filter: blur(5px);
+      transition: all 0.3s ease;
+    }
+
+    .game-ui button:hover {
+      background: rgba(0, 0, 0, 0.9);
+      transform: scale(1.05);
+    }
+
+    .exit-btn {
+      background: rgba(220, 53, 69, 0.8) !important;
+    }
+
+    .exit-btn:hover {
+      background: rgba(220, 53, 69, 1) !important;
+    }
+
+    /* 載入動畫 */
+    .loading {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      text-align: center;
+      color: white;
+    }
+
+    .spinner {
+      width: 50px;
+      height: 50px;
+      border: 4px solid rgba(255, 255, 255, 0.3);
+      border-top: 4px solid white;
+      border-radius: 50%;
+      animation: spin 1s linear infinite;
+      margin: 0 auto 20px;
+    }
+
+    @keyframes spin {
+      0% { transform: rotate(0deg); }
+      100% { transform: rotate(360deg); }
+    }
+
+    /* 響應式優化 */
+    @media (max-width: 768px) {
+      .container {
+        padding: 20px;
+        margin: 10px;
+      }
+
+      .game-ui {
+        top: 10px;
+        right: 10px;
+        flex-direction: column;
+      }
+
+      .game-ui button {
+        padding: 8px 12px;
+        font-size: 12px;
+      }
+    }
+
+    .section {
+      display: none;
+    }
+
+    .section.active {
+      display: block;
+    }
+  </style>
+</head>
+
+<body>
+  <!-- ========== 房間系統 ========== -->
+  <div class="room-system" id="room-system">
+    <div class="container">
+      <h1>🎮 Rummiword - 分離式架構測試</h1>
+
+      <!-- 連接狀態 -->
+      <div id="connection-status" class="connection-status info">
+        🔧 測試模式 - 無需服務器連接
+      </div>
+
+      <!-- 登入區段 -->
+      <div id="login-section" class="section active">
+        <div class="login-section">
+          <h2>👤 設置你的名稱</h2>
+          <div>
+            <input type="text" id="player-name-input" placeholder="輸入你的名稱" maxlength="20">
+            <button onclick="setPlayerName()">確認</button>
+          </div>
+          <p>這是分離式架構的測試版本</p>
+        </div>
+      </div>
+
+      <!-- 大廳區段 -->
+      <div id="lobby-section" class="section">
+        <div class="lobby-section">
+          <!-- 房間列表 -->
+          <div class="rooms-list">
+            <h3>🏠 測試房間列表</h3>
+            <div id="rooms-list">
+              <div class="room-card" onclick="joinTestRoom('room1')">
+                <div class="room-name">🎯 Phaser響應式測試房</div>
+                <div class="room-info">
+                  <span class="players-count">1/4</span>
+                  <span class="room-status waiting">等待中</span>
+                </div>
+                <button class="join-btn">測試全屏遊戲</button>
+              </div>
+              
+              <div class="room-card" onclick="joinTestRoom('room2')">
+                <div class="room-name">📱 移動端優化測試</div>
+                <div class="room-info">
+                  <span class="players-count">2/4</span>
+                  <span class="room-status waiting">等待中</span>
+                </div>
+                <button class="join-btn">測試響應式</button>
+              </div>
+            </div>
+          </div>
+
+          <!-- 測試控制 -->
+          <div class="create-room">
+            <h3>🔧 測試控制</h3>
+            <button class="test-btn" onclick="testFullscreenGame()">直接啟動全屏遊戲</button>
+            <button class="test-btn" onclick="testResponsive()">測試響應式效果</button>
+            <button class="test-btn" onclick="testPerformance()">性能測試模式</button>
+            <div style="margin-top: 15px; font-size: 0.9em; color: #666;">
+              <p>📋 測試項目：</p>
+              <p>• 房間→遊戲過渡動畫</p>
+              <p>• Phaser全屏響應式</p>
+              <p>• 性能和記憶體使用</p>
+              <p>• 返回房間系統</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 測試控制面板 -->
+      <div class="test-controls">
+        <h3>🧪 架構測試面板</h3>
+        <button class="test-btn" onclick="simulateRoomTransition()">模擬房間切換</button>
+        <button class="test-btn" onclick="checkResponsive()">檢查響應式</button>
+        <button class="test-btn" onclick="measurePerformance()">測量性能</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ========== 全屏Phaser遊戲覆蓋層 ========== -->
+  <div class="game-overlay" id="game-overlay">
+    <div class="game-container">
+      <!-- 遊戲UI控制 -->
+      <div class="game-ui">
+        <button onclick="toggleFullscreen()">🔳 全屏</button>
+        <button onclick="showGameStats()">📊 統計</button>
+        <button class="exit-btn" onclick="exitGame()">❌ 退出遊戲</button>
+      </div>
+      
+      <!-- Phaser遊戲容器 -->
+      <div id="phaser-game"></div>
+      
+      <!-- 載入動畫 -->
+      <div class="loading" id="game-loading">
+        <div class="spinner"></div>
+        <p>載入Phaser遊戲中...</p>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // ========== 全局變量 ==========
+    let currentGame = null;
+    let gameConfig = null;
+    let performanceMonitor = {
+      startTime: 0,
+      frameCount: 0,
+      lastFpsUpdate: 0
+    };
+
+    // ========== 房間系統功能 ==========
+    function setPlayerName() {
+      const nameInput = document.getElementById('player-name-input');
+      const name = nameInput.value.trim();
+      
+      if (!name) {
+        alert('請輸入有效的名稱');
+        return;
+      }
+
+      // 模擬設置成功
+      document.getElementById('connection-status').textContent = `✅ 歡迎, ${name}！`;
+      document.getElementById('connection-status').className = 'connection-status success';
+      
+      showSection('lobby-section');
+      console.log(`🎮 玩家 ${name} 進入大廳`);
+    }
+
+    function joinTestRoom(roomId) {
+      console.log(`🏠 加入測試房間: ${roomId}`);
+      
+      // 顯示連接狀態
+      document.getElementById('connection-status').textContent = '🎮 準備進入遊戲...';
+      document.getElementById('connection-status').className = 'connection-status info';
+      
+      // 延遲啟動遊戲，模擬真實連接
+      setTimeout(() => {
+        startGame({
+          roomId: roomId,
+          playerName: document.getElementById('player-name-input').value,
+          gameMode: 'test'
+        });
+      }, 1000);
+    }
+
+    function showSection(sectionId) {
+      document.querySelectorAll('.section').forEach(section => {
+        section.classList.remove('active');
+      });
+      document.getElementById(sectionId).classList.add('active');
+    }
+
+    // ========== 遊戲啟動和管理 ==========
+    function startGame(gameData) {
+      console.log('🚀 啟動分離式Phaser遊戲', gameData);
+      
+      // 隱藏房間系統
+      const roomSystem = document.getElementById('room-system');
+      roomSystem.classList.add('hidden');
+      
+      // 顯示遊戲覆蓋層
+      const gameOverlay = document.getElementById('game-overlay');
+      gameOverlay.classList.add('active');
+      
+      // 延遲載入遊戲，確保過渡動畫完成
+      setTimeout(() => {
+        initializePhaserGame(gameData);
+      }, 500);
+    }
+
+    function initializePhaserGame(gameData) {
+      console.log('🎮 初始化Phaser遊戲');
+      
+      performanceMonitor.startTime = performance.now();
+      
+      // 響應式計算遊戲尺寸
+      const gameSize = calculateGameSize();
+      
+      gameConfig = {
+        type: Phaser.AUTO,
+        width: gameSize.width,
+        height: gameSize.height,
+        parent: 'phaser-game',
+        backgroundColor: '#2c3e50',
+        scale: {
+          mode: Phaser.Scale.FIT,
+          autoCenter: Phaser.Scale.CENTER_BOTH,
+          width: gameSize.width,
+          height: gameSize.height
+        },
+        physics: {
+          default: 'arcade',
+          arcade: {
+            gravity: { y: 0 },
+            debug: false
+          }
+        },
+        scene: {
+          preload: preload,
+          create: create,
+          update: update
+        }
+      };
+
+      currentGame = new Phaser.Game(gameConfig);
+      
+      // 隱藏載入動畫
+      setTimeout(() => {
+        document.getElementById('game-loading').style.display = 'none';
+      }, 1500);
+    }
+
+    function calculateGameSize() {
+      const vw = window.innerWidth;
+      const vh = window.innerHeight;
+      
+      // 基礎遊戲尺寸
+      let width = 1200;
+      let height = 800;
+      
+      // 響應式調整
+      if (vw < 768) {
+        // 手機
+        width = Math.min(vw - 20, 800);
+        height = Math.min(vh - 20, 600);
+      } else if (vw < 1024) {
+        // 平板
+        width = Math.min(vw - 40, 1000);
+        height = Math.min(vh - 40, 700);
+      } else {
+        // 桌面 - 保持比例
+        const ratio = Math.min(vw / width, vh / height) * 0.9;
+        width = width * ratio;
+        height = height * ratio;
+      }
+      
+      console.log(`📐 計算遊戲尺寸: ${width}x${height} (視窗: ${vw}x${vh})`);
+      return { width: Math.floor(width), height: Math.floor(height) };
+    }
+
+    // ========== Phaser場景函數 ==========
+    function preload() {
+      console.log('📦 Phaser preload');
+      
+      // 創建簡單的彩色方塊作為測試素材
+      this.load.image('bg', 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChAI9jU77zgAAAABJRU5ErkJggg==');
+      
+      // 載入進度條
+      const progressBar = this.add.graphics();
+      const progressBox = this.add.graphics();
+      progressBox.fillStyle(0x222222);
+      progressBox.fillRect(this.cameras.main.width / 2 - 160, this.cameras.main.height / 2 - 25, 320, 50);
+      
+      this.load.on('progress', (value) => {
+        progressBar.clear();
+        progressBar.fillStyle(0x00ff00);
+        progressBar.fillRect(this.cameras.main.width / 2 - 150, this.cameras.main.height / 2 - 15, 300 * value, 30);
+      });
+    }
+
+    function create() {
+      console.log('🎨 Phaser create');
+      const scene = this;
+      
+      // 背景漸層
+      const graphics = this.add.graphics();
+      graphics.fillGradientStyle(0x2c3e50, 0x3498db, 0x2c3e50, 0x3498db);
+      graphics.fillRect(0, 0, this.cameras.main.width, this.cameras.main.height);
+      
+      // 遊戲標題
+      const title = this.add.text(this.cameras.main.width / 2, 100, '🎮 Rummiword Phaser測試', {
+        fontSize: this.cameras.main.width < 768 ? '24px' : '36px',
+        fontFamily: 'Arial',
+        color: '#ffffff',
+        fontStyle: 'bold'
+      }).setOrigin(0.5);
+      
+      // 響應式資訊顯示
+      const deviceInfo = getDeviceInfo();
+      const infoText = this.add.text(this.cameras.main.width / 2, 160, deviceInfo, {
+        fontSize: this.cameras.main.width < 768 ? '14px' : '18px',
+        fontFamily: 'Arial',
+        color: '#ecf0f1',
+        align: 'center'
+      }).setOrigin(0.5);
+      
+      // 創建測試元素
+      createTestElements(scene);
+      
+      // 性能監控
+      createPerformanceDisplay(scene);
+      
+      // 觸控/鼠標事件測試
+      setupInputTests(scene);
+      
+      console.log('✅ Phaser場景創建完成');
+    }
+
+    function update() {
+      // 性能監控
+      updatePerformanceMonitor(this);
+    }
+
+    function createTestElements(scene) {
+      const centerX = scene.cameras.main.width / 2;
+      const centerY = scene.cameras.main.height / 2;
+      
+      // 互動測試方塊
+      for (let i = 0; i < 5; i++) {
+        const box = scene.add.rectangle(
+          centerX - 200 + (i * 100), 
+          centerY, 
+          60, 60, 
+          Phaser.Display.Color.HSVToRGB(i * 0.2, 1, 1).color
+        );
+        
+        box.setInteractive({ cursor: 'pointer' });
+        box.setStrokeStyle(2, 0xffffff);
+        
+        // 添加動畫
+        scene.tweens.add({
+          targets: box,
+          y: centerY - 20,
+          duration: 1000 + (i * 200),
+          yoyo: true,
+          repeat: -1,
+          ease: 'Power2'
+        });
+        
+        // 點擊效果
+        box.on('pointerdown', () => {
+          scene.tweens.add({
+            targets: box,
+            scaleX: 1.2,
+            scaleY: 1.2,
+            duration: 100,
+            yoyo: true,
+            ease: 'Power2'
+          });
+          
+          // 創建粒子效果
+          createParticleEffect(scene, box.x, box.y);
+        });
+      }
+      
+      // 添加說明文字
+      scene.add.text(centerX, centerY + 100, '點擊彩色方塊測試互動效果', {
+        fontSize: scene.cameras.main.width < 768 ? '14px' : '18px',
+        fontFamily: 'Arial',
+        color: '#ffffff',
+        align: 'center'
+      }).setOrigin(0.5);
+    }
+
+    function createParticleEffect(scene, x, y) {
+      // 簡單的粒子爆炸效果
+      for (let i = 0; i < 10; i++) {
+        const particle = scene.add.rectangle(x, y, 4, 4, 0xffffff);
+        const angle = (Math.PI * 2 * i) / 10;
+        const speed = 50 + Math.random() * 50;
+        
+        scene.tweens.add({
+          targets: particle,
+          x: x + Math.cos(angle) * speed,
+          y: y + Math.sin(angle) * speed,
+          alpha: 0,
+          duration: 500,
+          ease: 'Power2',
+          onComplete: () => particle.destroy()
+        });
+      }
+    }
+
+    function createPerformanceDisplay(scene) {
+      // FPS顯示
+      scene.fpsText = scene.add.text(20, 20, 'FPS: --', {
+        fontSize: '16px',
+        fontFamily: 'monospace',
+        color: '#00ff00',
+        backgroundColor: 'rgba(0, 0, 0, 0.7)',
+        padding: { x: 5, y: 5 }
+      });
+      
+      // 記憶體使用（如果可用）
+      if (performance.memory) {
+        scene.memoryText = scene.add.text(20, 50, 'Memory: --', {
+          fontSize: '14px',
+          fontFamily: 'monospace',
+          color: '#ffff00',
+          backgroundColor: 'rgba(0, 0, 0, 0.7)',
+          padding: { x: 5, y: 5 }
+        });
+      }
+      
+      // 遊戲尺寸資訊
+      scene.sizeText = scene.add.text(20, 80, `Size: ${scene.cameras.main.width}x${scene.cameras.main.height}`, {
+        fontSize: '14px',
+        fontFamily: 'monospace',
+        color: '#00ffff',
+        backgroundColor: 'rgba(0, 0, 0, 0.7)',
+        padding: { x: 5, y: 5 }
+      });
+    }
+
+    function updatePerformanceMonitor(scene) {
+      performanceMonitor.frameCount++;
+      const now = performance.now();
+      
+      if (now - performanceMonitor.lastFpsUpdate > 1000) {
+        const fps = Math.round(performanceMonitor.frameCount * 1000 / (now - performanceMonitor.lastFpsUpdate));
+        if (scene.fpsText) {
+          scene.fpsText.setText(`FPS: ${fps}`);
+        }
+        
+        if (scene.memoryText && performance.memory) {
+          const memory = (performance.memory.usedJSHeapSize / 1048576).toFixed(1);
+          scene.memoryText.setText(`Memory: ${memory} MB`);
+        }
+        
+        performanceMonitor.frameCount = 0;
+        performanceMonitor.lastFpsUpdate = now;
+      }
+    }
+
+    function setupInputTests(scene) {
+      // 鍵盤事件
+      const cursors = scene.input.keyboard.createCursorKeys();
+      const wasd = scene.input.keyboard.addKeys('W,S,A,D');
+      
+      // ESC鍵退出遊戲
+      scene.input.keyboard.on('keydown-ESC', () => {
+        exitGame();
+      });
+      
+      // 全屏切換
+      scene.input.keyboard.on('keydown-F', () => {
+        toggleFullscreen();
+      });
+    }
+
+    function getDeviceInfo() {
+      const vw = window.innerWidth;
+      const vh = window.innerHeight;
+      const dpr = window.devicePixelRatio || 1;
+      const userAgent = navigator.userAgent;
+      
+      let deviceType = '🖥️ 桌面';
+      if (/Mobi|Android/i.test(userAgent)) {
+        deviceType = '📱 手機';
+      } else if (/Tablet|iPad/i.test(userAgent)) {
+        deviceType = '📱 平板';
+      }
+      
+      return `${deviceType} | 螢幕: ${vw}x${vh} | DPR: ${dpr}`;
+    }
+
+    // ========== 遊戲控制功能 ==========
+    function exitGame() {
+      console.log('🚪 退出遊戲');
+      
+      if (currentGame) {
+        currentGame.destroy(true);
+        currentGame = null;
+      }
+      
+      // 隱藏遊戲覆蓋層
+      const gameOverlay = document.getElementById('game-overlay');
+      gameOverlay.classList.remove('active');
+      
+      // 顯示房間系統
+      const roomSystem = document.getElementById('room-system');
+      roomSystem.classList.remove('hidden');
+      
+      // 清空遊戲容器
+      document.getElementById('phaser-game').innerHTML = '';
+      
+      // 顯示載入動畫（為下次遊戲準備）
+      document.getElementById('game-loading').style.display = 'block';
+      
+      // 更新連接狀態
+      document.getElementById('connection-status').textContent = '🏠 已返回房間系統';
+      document.getElementById('connection-status').className = 'connection-status success';
+      
+      console.log('✅ 成功返回房間系統');
+    }
+
+    function toggleFullscreen() {
+      if (document.fullscreenElement) {
+        document.exitFullscreen().then(() => {
+          console.log('📱 退出全屏模式');
+        });
+      } else {
+        document.documentElement.requestFullscreen().then(() => {
+          console.log('🔳 進入全屏模式');
+          
+          // 重新計算遊戲尺寸
+          setTimeout(() => {
+            if (currentGame) {
+              const newSize = calculateGameSize();
+              currentGame.scale.resize(newSize.width, newSize.height);
+            }
+          }, 100);
+        });
+      }
+    }
+
+    function showGameStats() {
+      if (!currentGame) return;
+      
+      const stats = {
+        fps: currentGame.loop.actualFps.toFixed(1),
+        memory: performance.memory ? (performance.memory.usedJSHeapSize / 1048576).toFixed(1) + ' MB' : 'N/A',
+        gameSize: `${currentGame.config.width}x${currentGame.config.height}`,
+        windowSize: `${window.innerWidth}x${window.innerHeight}`,
+        uptime: ((performance.now() - performanceMonitor.startTime) / 1000).toFixed(1) + 's'
+      };
+      
+      const statsText = `
+🎮 遊戲統計資訊
+━━━━━━━━━━━━━━━━
+📊 FPS: ${stats.fps}
+💾 記憶體: ${stats.memory}
+🎯 遊戲尺寸: ${stats.gameSize}
+🖥️ 視窗尺寸: ${stats.windowSize}
+⏱️ 運行時間: ${stats.uptime}
+━━━━━━━━━━━━━━━━
+      `;
+      
+      alert(statsText);
+      console.log('📊 遊戲統計:', stats);
+    }
+
+    // ========== 測試功能 ==========
+    function testFullscreenGame() {
+      console.log('🧪 直接測試全屏遊戲');
+      startGame({
+        roomId: 'direct-test',
+        playerName: 'Test Player',
+        gameMode: 'fullscreen-test'
+      });
+    }
+
+    function testResponsive() {
+      console.log('📱 測試響應式效果');
+      
+      const testSizes = [
+        { width: 1920, height: 1080, name: '1920x1080 (桌面)' },
+        { width: 1366, height: 768, name: '1366x768 (筆電)' },
+        { width: 768, height: 1024, name: '768x1024 (平板)' },
+        { width: 375, height: 667, name: '375x667 (手機)' }
+      ];
+      
+      let currentIndex = 0;
+      
+      const testNextSize = () => {
+        if (currentIndex >= testSizes.length) {
+          alert('📱 響應式測試完成！');
+          return;
+        }
+        
+        const size = testSizes[currentIndex];
+        
+        // 模擬視窗大小變化
+        if (currentGame) {
+          const mockSize = calculateGameSize();
+          currentGame.scale.resize(mockSize.width, mockSize.height);
+        }
+        
+        console.log(`📐 測試尺寸: ${size.name}`);
+        
+        setTimeout(() => {
+          currentIndex++;
+          testNextSize();
+        }, 2000);
+      };
+      
+      if (!currentGame) {
+        startGame({ gameMode: 'responsive-test' });
+        setTimeout(testNextSize, 2000);
+      } else {
+        testNextSize();
+      }
+    }
+
+    function testPerformance() {
+      console.log('⚡ 啟動性能測試模式');
+      
+      if (currentGame) {
+        // 創建大量物件進行性能測試
+        const scene = currentGame.scene.scenes[0];
+        
+        for (let i = 0; i < 100; i++) {
+          const sprite = scene.add.rectangle(
+            Math.random() * scene.cameras.main.width,
+            Math.random() * scene.cameras.main.height,
+            10, 10,
+            Phaser.Display.Color.RandomRGB().color
+          );
+          
+          scene.tweens.add({
+            targets: sprite,
+            x: Math.random() * scene.cameras.main.width,
+            y: Math.random() * scene.cameras.main.height,
+            duration: 2000 + Math.random() * 2000,
+            repeat: -1,
+            yoyo: true
+          });
+        }
+        
+        alert('⚡ 已添加100個動畫物件進行性能測試');
+      } else {
+        startGame({ gameMode: 'performance-test' });
+      }
+    }
+
+    function simulateRoomTransition() {
+      console.log('🔄 模擬房間切換');
+      
+      let step = 0;
+      const steps = [
+        '🏠 房間系統顯示中',
+        '🎮 準備進入遊戲',
+        '📦 載入Phaser遊戲',
+        '✅ 遊戲運行中',
+        '🚪 準備退出遊戲',
+        '🏠 返回房間系統'
+      ];
+      
+      const runStep = () => {
+        if (step >= steps.length) {
+          console.log('✅ 房間切換測試完成');
+          return;
+        }
+        
+        document.getElementById('connection-status').textContent = steps[step];
+        console.log(steps[step]);
+        
+        switch (step) {
+          case 1: // 準備進入遊戲
+            setTimeout(() => {
+              document.getElementById('room-system').classList.add('hidden');
+              document.getElementById('game-overlay').classList.add('active');
+            }, 1000);
+            break;
+            
+          case 2: // 載入遊戲
+            setTimeout(() => {
+              if (!currentGame) {
+                initializePhaserGame({ gameMode: 'transition-test' });
+              }
+            }, 1000);
+            break;
+            
+          case 4: // 準備退出
+            setTimeout(() => {
+              if (currentGame) {
+                currentGame.destroy(true);
+                currentGame = null;
+              }
+              document.getElementById('game-overlay').classList.remove('active');
+              document.getElementById('room-system').classList.remove('hidden');
+            }, 1000);
+            break;
+        }
+        
+        step++;
+        setTimeout(runStep, 2000);
+      };
+      
+      runStep();
+    }
+
+    function checkResponsive() {
+      const info = {
+        viewport: `${window.innerWidth}x${window.innerHeight}`,
+        devicePixelRatio: window.devicePixelRatio,
+        orientation: window.innerHeight > window.innerWidth ? '豎屏' : '橫屏',
+        userAgent: navigator.userAgent.includes('Mobile') ? '移動設備' : '桌面設備',
+        gameSize: currentGame ? `${currentGame.config.width}x${currentGame.config.height}` : '未運行'
+      };
+      
+      const infoText = `
+📱 響應式檢查結果
+━━━━━━━━━━━━━━━━
+🖥️ 視窗尺寸: ${info.viewport}
+📐 像素比率: ${info.devicePixelRatio}
+🔄 螢幕方向: ${info.orientation}
+📱 設備類型: ${info.userAgent}
+🎮 遊戲尺寸: ${info.gameSize}
+━━━━━━━━━━━━━━━━
+      `;
+      
+      alert(infoText);
+      console.log('📱 響應式資訊:', info);
+    }
+
+    function measurePerformance() {
+      console.log('📊 開始性能測量');
+      
+      const startTime = performance.now();
+      let frameCount = 0;
+      let maxMemory = 0;
+      
+      const measure = () => {
+        frameCount++;
+        
+        if (performance.memory) {
+          const currentMemory = performance.memory.usedJSHeapSize / 1048576;
+          maxMemory = Math.max(maxMemory, currentMemory);
+        }
+        
+        if (frameCount < 300) { // 測量5秒（60fps）
+          requestAnimationFrame(measure);
+        } else {
+          const endTime = performance.now();
+          const avgFps = frameCount / ((endTime - startTime) / 1000);
+          
+          const result = `
+⚡ 性能測量結果
+━━━━━━━━━━━━━━━━
+🎯 平均FPS: ${avgFps.toFixed(1)}
+💾 最高記憶體: ${maxMemory.toFixed(1)} MB
+⏱️ 測量時間: ${((endTime - startTime) / 1000).toFixed(1)}s
+📊 總幀數: ${frameCount}
+━━━━━━━━━━━━━━━━
+          `;
+          
+          alert(result);
+          console.log('📊 性能結果:', { avgFps, maxMemory, duration: endTime - startTime });
+        }
+      };
+      
+      requestAnimationFrame(measure);
+    }
+
+    // ========== 事件監聽器 ==========
+    
+    // 視窗大小變化
+    window.addEventListener('resize', () => {
+      if (currentGame) {
+        setTimeout(() => {
+          const newSize = calculateGameSize();
+          currentGame.scale.resize(newSize.width, newSize.height);
+          console.log(`📐 視窗調整，新遊戲尺寸: ${newSize.width}x${newSize.height}`);
+        }, 100);
+      }
+    });
+
+    // 方向變化（移動設備）
+    window.addEventListener('orientationchange', () => {
+      setTimeout(() => {
+        if (currentGame) {
+          const newSize = calculateGameSize();
+          currentGame.scale.resize(newSize.width, newSize.height);
+          console.log('🔄 螢幕方向變化，重新計算遊戲尺寸');
+        }
+      }, 500);
+    });
+
+    // 全屏狀態變化
+    document.addEventListener('fullscreenchange', () => {
+      console.log('🔳 全屏狀態變化:', document.fullscreenElement ? '進入' : '退出');
+      
+      if (currentGame) {
+        setTimeout(() => {
+          const newSize = calculateGameSize();
+          currentGame.scale.resize(newSize.width, newSize.height);
+        }, 100);
+      }
+    });
+
+    // 鍵盤快捷鍵
+    document.addEventListener('keydown', (event) => {
+      // ESC退出遊戲
+      if (event.key === 'Escape' && currentGame) {
+        exitGame();
+      }
+      
+      // F11切換全屏（阻止默認行為）
+      if (event.key === 'F11') {
+        event.preventDefault();
+        toggleFullscreen();
+      }
+    });
+
+    // ========== 初始化 ==========
+    console.log('🚀 分離式架構測試頁面載入完成');
+    console.log('📋 可用測試功能:', {
+      '房間系統': '✅ HTML + CSS響應式',
+      'Phaser遊戲': '✅ 全屏遊戲模式',
+      '切換動畫': '✅ 平滑過渡效果',
+      '性能監控': '✅ FPS和記憶體監控',
+      '響應式': '✅ 自動尺寸調整',
+      '快捷鍵': '✅ ESC退出，F11全屏'
+    });
+  </script>
+</body>
+</html>

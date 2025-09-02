@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <title>RummiWord Demo</title>
+  <script src="https://cdn.jsdelivr.net/npm/phaser@3/dist/phaser.js"></script>
+</head>
+<body>
+  <h2 style="text-align:center;">RummiWord 測試版</h2>
+  <script>
+    class GameScene extends Phaser.Scene {
+      constructor() {
+        super("GameScene");
+      }
+
+      preload() {
+        // 這裡先不用載入圖檔，直接用文字顯示字母
+      }
+
+      create() {
+        this.letters = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
+        this.dictionary = new Set(["cat", "dog", "word"]);
+        this.currentWord = [];
+        this.tiles = [];
+
+        // 玩家手牌 (隨機 7 張)
+        for (let i = 0; i < 7; i++) {
+          let rand = Phaser.Math.Between(0, this.letters.length - 1);
+          let letter = this.letters[rand];
+          let tile = this.add.text(100 + i * 60, 500, letter, {
+            fontSize: "32px",
+            backgroundColor: "#fff",
+            color: "#000",
+            padding: { x: 10, y: 5 }
+          }).setInteractive({ draggable: true });
+
+          tile.letter = letter;
+          this.input.setDraggable(tile);
+          this.tiles.push(tile);
+        }
+
+        // 拖曳行為
+        this.input.on("drag", (pointer, gameObject, dragX, dragY) => {
+          gameObject.x = dragX;
+          gameObject.y = dragY;
+        });
+
+        this.input.on("dragend", (pointer, gameObject) => {
+          if (gameObject.y < 400) {
+            this.currentWord.push(gameObject.letter);
+          }
+        });
+
+        // 確認按鈕
+        let confirmBtn = this.add.text(650, 500, "確認", {
+          fontSize: "28px",
+          backgroundColor: "#0f0",
+          color: "#000",
+          padding: { x: 15, y: 8 }
+        }).setInteractive();
+
+        confirmBtn.on("pointerdown", () => {
+          let word = this.currentWord.join("");
+          if (this.dictionary.has(word.toLowerCase())) {
+            alert(`✅ 成功拼出單字: ${word}`);
+          } else {
+            alert(`❌ 不是合法單字: ${word}`);
+          }
+          this.currentWord = [];
+        });
+      }
+    }
+
+    const config = {
+      type: Phaser.AUTO,
+      width: 800,
+      height: 600,
+      backgroundColor: "#87ceeb",
+      scene: [GameScene]
+    };
+
+    const game = new Phaser.Game(config);
+  </script>
+</body>
+</html>
